@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(image_stego_native C)
+find_package(JPEG REQUIRED)
+add_executable(jpegtool native/jpegtool.c)
+set_target_properties(jpegtool PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
+target_link_libraries(jpegtool PRIVATE JPEG::JPEG)

@@ -1,0 +1,25 @@
+test_bad_images_and_unsupported_formats (test_image_stego.ImageStegoTests.test_bad_images_and_unsupported_formats) ... ok
+test_bmp_roundtrip_and_png_bmp_lossless_conversion (test_image_stego.ImageStegoTests.test_bmp_roundtrip_and_png_bmp_lossless_conversion) ... ok
+test_clean_and_tiny_inputs_are_not_payloads (test_image_stego.ImageStegoTests.test_clean_and_tiny_inputs_are_not_payloads) ... ok
+test_empty_message (test_image_stego.ImageStegoTests.test_empty_message) ... ok
+test_exact_spatial_capacity (test_image_stego.ImageStegoTests.test_exact_spatial_capacity) ... ok
+test_jpeg_capacity_is_exact (test_image_stego.ImageStegoTests.test_jpeg_capacity_is_exact) ... ok
+test_jpeg_dct_encryption_and_recompression (test_image_stego.ImageStegoTests.test_jpeg_dct_encryption_and_recompression) ... ok
+test_jpeg_normalization_and_odd_dimensions (test_image_stego.ImageStegoTests.test_jpeg_normalization_and_odd_dimensions) ... ok
+test_metadata_independence_and_orientation (test_image_stego.ImageStegoTests.test_metadata_independence_and_orientation) ... ok
+test_missing_jpeg_helper_never_falls_back_to_pixel_jpeg (test_image_stego.ImageStegoTests.test_missing_jpeg_helper_never_falls_back_to_pixel_jpeg) ... ok
+test_one_bit_per_ecc_word (test_image_stego.ImageStegoTests.test_one_bit_per_ecc_word) ... ok
+test_plain_body_corruption_is_rejected (test_image_stego.ImageStegoTests.test_plain_body_corruption_is_rejected) ... ok
+test_png_alpha_and_no_hidden_rgb_changes_behind_zero_alpha (test_image_stego.ImageStegoTests.test_png_alpha_and_no_hidden_rgb_changes_behind_zero_alpha) ... ok
+test_png_unicode_encrypted (test_image_stego.ImageStegoTests.test_png_unicode_encrypted) ... ok
+test_progressive_grayscale_jpeg (test_image_stego.ImageStegoTests.test_progressive_grayscale_jpeg) ... ok
+test_quality_values (test_image_stego.ImageStegoTests.test_quality_values) ... ok
+test_real_heic_can_be_used_as_cover_for_png_and_jpeg (test_image_stego.ImageStegoTests.test_real_heic_can_be_used_as_cover_for_png_and_jpeg) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 4.190s
+
+OK
+Python 3.13.5
+Pillow 12.3.0, NumPy 2.3.5, cryptography 46.0.4, scikit-image 0.26.0
+Linux x86_64
