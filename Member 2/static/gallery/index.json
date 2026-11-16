@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "name": "Ocean",
+    "file": "01-ocean.png",
+    "thumb": "thumb-01-ocean.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 2,
+    "name": "Sunset",
+    "file": "02-sunset.png",
+    "thumb": "thumb-02-sunset.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 3,
+    "name": "Forest",
+    "file": "03-forest.png",
+    "thumb": "thumb-03-forest.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 4,
+    "name": "Lavender",
+    "file": "04-lavender.png",
+    "thumb": "thumb-04-lavender.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 5,
+    "name": "Ember",
+    "file": "05-ember.png",
+    "thumb": "thumb-05-ember.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 6,
+    "name": "Glacier",
+    "file": "06-glacier.png",
+    "thumb": "thumb-06-glacier.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 7,
+    "name": "Dune",
+    "file": "07-dune.png",
+    "thumb": "thumb-07-dune.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 8,
+    "name": "Rose",
+    "file": "08-rose.png",
+    "thumb": "thumb-08-rose.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 9,
+    "name": "Slate",
+    "file": "09-slate.png",
+    "thumb": "thumb-09-slate.png",
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 10,
+    "name": "Mint",
+    "file": "10-mint.png",
+    "thumb": "thumb-10-mint.png",
+    "width": 960,
+    "height": 720
+  }
+]

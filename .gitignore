@@ -1,0 +1,7 @@
+.venv/
+build/
+__pycache__/
+*.pyc
+.vscode/
+# Stego Mail runtime data: accounts database, uploaded files, session key
+Member 2/data/
