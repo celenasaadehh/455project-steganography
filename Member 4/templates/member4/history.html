@@ -1,0 +1,27 @@
+{# Member 4: History view, included in Member 2's index.html #}
+<section class="view" data-view="history" hidden>
+  <div class="m4" data-m4-history>
+    <section class="m4-card">
+      <p class="m4-muted" style="margin-top:0">Every message you hide (Send) or reveal is listed here. For privacy, the secret itself is <b>never stored</b>, only its length.</p>
+      <div class="m4-hist-bar">
+        <div class="m4-filters">
+          <label>Action<select data-m4-f="action"><option value="">All</option><option value="hide">Hide</option><option value="reveal">Reveal</option></select></label>
+          <label>Carrier<select data-m4-f="carrier"><option value="">All</option><option value="image">Picture</option><option value="text">Text</option></select></label>
+          <label>Result<select data-m4-f="success"><option value="">All</option><option value="1">Success</option><option value="0">Failed</option></select></label>
+        </div>
+        <div class="m4-filters">
+          <a class="btn ghost" href="/api/history.csv" data-m4-export>Export CSV</a>
+          <button class="btn ghost danger" data-m4-clear>Clear history</button>
+        </div>
+      </div>
+      <div class="m4-hist-stats" data-m4-hist-stats></div>
+      <div class="m4-table-wrap">
+        <table class="m4-table m4-hist">
+          <thead><tr><th>When</th><th>Action</th><th>Carrier &amp; method</th><th>With</th><th>Length</th><th>Lock</th><th>Result</th><th></th></tr></thead>
+          <tbody data-m4-hist-rows></tbody>
+        </table>
+      </div>
+      <p class="m4-empty" data-m4-hist-empty hidden>Nothing yet. Send or reveal a message and it will show up here.</p>
+    </section>
+  </div>
+</section>

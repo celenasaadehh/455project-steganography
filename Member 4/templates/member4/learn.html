@@ -1,0 +1,162 @@
+{# Member 4: Learn content, included inside the Tutorial view of Member 2's index.html #}
+<div class="m4" data-m4-learn>
+
+  <nav class="m4-toc" aria-label="On this page">
+    <a href="#m4-what">What is this?</a>
+    <a href="#m4-image">Pictures</a>
+    <a href="#m4-text">Text</a>
+    <a href="#m4-lock">Password lock</a>
+    <a href="#m4-try">See it step by step</a>
+    <a href="#m4-compare">Compared to others</a>
+  </nav>
+
+  <!-- ===================== 1. WHAT IS IT ===================== -->
+  <section class="m4-card" id="m4-what">
+    <h2>What is Stego Mail?</h2>
+    <p><strong>Steganography</strong> means hiding a secret message inside something that looks ordinary, so nobody even suspects a secret exists. Stego Mail lets you send a friend a normal-looking <strong>picture</strong> or <strong>sentence</strong> with a message hidden inside it.</p>
+    <div class="m4-two">
+      <div class="m4-mini"><h3>Encryption alone</h3><p>Turns the message into gibberish like <code>x7#kQ9…</code>. Anyone can see that <em>something secret</em> is being sent.</p></div>
+      <div class="m4-mini"><h3>Steganography</h3><p>The message travels inside a sunset photo. Anyone looking sees only a sunset.</p></div>
+    </div>
+    <p>Stego Mail does <strong>both</strong>: it hides the message, and if you add a password it also encrypts it. Even if someone finds the hidden data, they can't read it.</p>
+    <div class="m4-note">The server stores only the picture or text that carries the message, never the message itself. It is read out of the carrier only when the recipient presses <b>Reveal</b>.</div>
+  </section>
+
+  <!-- ===================== 2. IMAGES ===================== -->
+  <section class="m4-card" id="m4-image">
+    <h2>How we hide a message in a picture</h2>
+
+    <h3>The basic idea: the last bit</h3>
+    <p>A picture is a grid of <strong>pixels</strong>. Every pixel has three colour values, <span class="m4-r">Red</span>, <span class="m4-g">Green</span> and <span class="m4-b">Blue</span>, each a number from 0 to 255 stored as 8 bits. The <strong>last bit</strong> is the least important: changing it moves the value by only 1, which no eye can see.</p>
+    <p class="m4-eq">Red = 204 = <code>1100110<u>0</u></code> &nbsp;→&nbsp; <code>1100110<u>1</u></code> = 205</p>
+    <p>The simplest method (called <strong>LSB</strong>, least significant bit) writes one message bit into the last bit of every colour value, starting at the top-left. It works, but the changes are crowded together at the top of the picture, and statistical tools can spot them. <strong>Our app (Member 1's code) improves this in four ways:</strong></p>
+
+    <div class="m4-steps">
+      <div class="m4-step"><span>1</span><div>
+        <h4>Hide only in "busy" areas</h4>
+        <p>The picture is cut into 8×8 tiles. Each tile gets a "busyness" score: how much neighbouring pixels differ (leaves, waves, hair score high; clear sky scores low). Only the <strong>busier half</strong> of the tiles is used, because tiny changes vanish in texture but could stand out in a smooth area. The score ignores the last bit, so the receiver can rebuild the exact same map from the received picture.</p>
+      </div></div>
+      <div class="m4-step"><span>2</span><div>
+        <h4>Matrix embedding: 3 bits in 7 values, at most 1 change</h4>
+        <p>The usable colour values are put into <strong>groups of 7</strong>, numbered 1 to 7. Take the numbers of all values whose last bit is 1 and combine them with XOR. The result is a 3-bit number, and that number <em>is</em> the hidden data. To make it equal the 3 bits we want, we only ever need to change <strong>one</strong> value by 1 (or none, if it already matches).</p>
+        <p class="m4-muted">Plain LSB would need 3 values for 3 bits and change about 1.5 of them on average. Ours changes at most 1 in 7, so the picture is disturbed far less.</p>
+      </div></div>
+      <div class="m4-step"><span>3</span><div>
+        <h4>Scatter the bits in a random order</h4>
+        <p>The groups are not used top-to-bottom. A random-looking order is generated from a <strong>salt</strong> (16 random bytes chosen for every message) and, when locked, from the password too. So every picture uses different pixels, spread across the whole image.</p>
+      </div></div>
+      <div class="m4-step"><span>4</span><div>
+        <h4>A small header in front</h4>
+        <p>Before the message, the app hides a <strong>43-byte header</strong>: the tag <code>ILAB</code> (so the app recognises its own pictures), version, method, whether it is locked, the message length, the salt, the encryption nonce, and a CRC check value. The header always uses a fixed public order so the receiver can find it first, then it tells them where and how much to read.</p>
+      </div></div>
+    </div>
+
+    <p>Finally, the app <strong>checks its own work</strong>: before sending, it extracts the message from the finished picture and makes sure it matches exactly.</p>
+
+    <h3>Which picture format?</h3>
+    <div class="m4-table-wrap"><table class="m4-table">
+      <thead><tr><th>Format</th><th>How it hides</th><th>Holds (typical)</th><th>Survives</th></tr></thead>
+      <tbody>
+        <tr><td><b>PNG</b> (recommended)</td><td>Busy areas + matrix embedding (above)</td><td>Thousands of bytes; about 55 KB in a 960×720 gallery picture</td><td>Re-saving as PNG. <b>Not</b> converting to JPEG, resizing, cropping or screenshots.</td></tr>
+        <tr><td><b>BMP</b></td><td>Same as PNG</td><td>Same</td><td>Same (bigger files, no transparency)</td></tr>
+        <tr><td><b>JPEG</b></td><td>A different method: it slightly moves the JPEG's compressed frequency values (called <em>QIM</em>) and repeats the bits with error correction</td><td>Much less: about 190–460 bytes in Member 1's tests</td><td>Being re-saved as JPEG (all tests passed down to quality 30). Not resizing. Changes can be more visible.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="m4-muted">iPhone HEIC photos can be chosen as the starting picture; the result is saved as PNG, BMP or JPEG.</p>
+  </section>
+
+  <!-- ===================== 3. TEXT ===================== -->
+  <section class="m4-card" id="m4-text">
+    <h2>How we hide a message in text</h2>
+    <p>Unicode, the system computers use for all the world's letters, includes characters that are <strong>completely invisible</strong> and take up no space. They exist for languages such as Arabic and Persian, to control how letters join. Our app (Member 2's code) uses <strong>four</strong> of them, so each invisible character carries <strong>2 bits</strong>:</p>
+    <div class="m4-symbols">
+      <div><span class="m4-zw z0">00</span> U+200B Zero Width Space</div>
+      <div><span class="m4-zw z1">01</span> U+200C Zero Width Non-Joiner</div>
+      <div><span class="m4-zw z2">10</span> U+200D Zero Width Joiner</div>
+      <div><span class="m4-zw z3">11</span> U+2060 Word Joiner</div>
+    </div>
+    <ol class="m4-ol">
+      <li>The secret becomes bytes. Each byte (8 bits) becomes <strong>4 invisible characters</strong>.</li>
+      <li>In front goes a tiny header: <code>ZW</code> (our tag), a version number and a "locked?" flag. An unlocked message ends with a CRC check; a locked one carries the salt, nonce and an authentication tag instead.</li>
+      <li>The invisible run is slipped in <strong>right after the first word</strong> of your cover sentence.</li>
+    </ol>
+    <p>The sentence looks <strong>exactly</strong> the same on screen and survives copy and paste in many apps.</p>
+    <div class="m4-note warn">The text gets longer: a 10-letter secret adds 72 invisible characters (232 with a password). A character counter or Unicode scanner would notice, and some apps (or retyping the text) remove them. The visible words never change.</div>
+  </section>
+
+  <!-- ===================== 4. LOCK ===================== -->
+  <section class="m4-card" id="m4-lock">
+    <h2>The password lock</h2>
+    <p>Pictures and text use the same lock:</p>
+    <ol class="m4-ol">
+      <li>Your password and the random salt go through <strong>scrypt</strong>, a deliberately slow function that turns a password into a 256-bit key. Being slow makes guessing passwords expensive.</li>
+      <li>The message is encrypted with <strong>AES-256-GCM</strong>. GCM also adds a 16-byte "seal" (authentication tag): if the password is wrong <em>or</em> one bit of the carrier was changed, the app refuses instead of showing garbage.</li>
+      <li>For pictures, the password also decides <strong>which pixels</strong> hold the message.</li>
+    </ol>
+    <p>Share the password another way, for example by phone. Without a lock, the message is only hidden, not secret: anyone with our app could reveal it.</p>
+  </section>
+
+  <!-- ===================== 5. INTERACTIVE ===================== -->
+  <section class="m4-card" id="m4-try">
+    <h2>See it step by step</h2>
+    <p class="m4-muted">This runs the <strong>exact same code</strong> as the Send button, then shows you what happened inside. Nothing is sent to anyone.</p>
+
+    <div class="m4-tabs" role="tablist">
+      <button class="m4-tab active" data-m4-tab="img" role="tab">Picture</button>
+      <button class="m4-tab" data-m4-tab="txt" role="tab">Text</button>
+    </div>
+
+    <!-- picture -->
+    <div data-m4-panel="img">
+      <label class="m4-label">1. Pick a picture</label>
+      <div class="m4-picker" data-m4-picker><span class="m4-muted">Loading gallery…</span></div>
+      <label class="m4-upload">or upload your own <input type="file" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" data-m4-upload></label>
+      <div class="m4-two">
+        <label class="m4-label">2. Secret message<input type="text" data-m4-img-msg value="Meet me at 5pm" maxlength="500"></label>
+        <label class="m4-label">3. Password (optional)<input type="text" data-m4-img-pw placeholder="Leave empty for no lock" autocomplete="off"></label>
+      </div>
+      <button class="btn primary" data-m4-img-go>Hide it and show me</button>
+      <div class="status" data-m4-img-status></div>
+      <div class="m4-walk" data-m4-img-walk hidden></div>
+    </div>
+
+    <!-- text -->
+    <div data-m4-panel="txt" hidden>
+      <div class="m4-two">
+        <label class="m4-label">Cover sentence (what everyone sees)<textarea data-m4-txt-cover>See you at the library tomorrow, don't be late!</textarea></label>
+        <label class="m4-label">Secret message<textarea data-m4-txt-msg>gate B, 5pm</textarea></label>
+      </div>
+      <label class="m4-label">Password (optional)<input type="text" data-m4-txt-pw placeholder="Leave empty for no lock" autocomplete="off"></label>
+      <button class="btn primary" data-m4-txt-go>Hide it and show me</button>
+      <div class="status" data-m4-txt-status></div>
+      <div class="m4-walk" data-m4-txt-walk hidden></div>
+    </div>
+  </section>
+
+  <!-- ===================== 6. COMPARISON ===================== -->
+  <section class="m4-card" id="m4-compare">
+    <h2>How does Stego Mail compare?</h2>
+    <h3>Other ways to hide in pictures</h3>
+    <div class="m4-table-wrap"><table class="m4-table">
+      <thead><tr><th>Method</th><th>Holds</th><th>Hard to detect?</th><th>Survives JPEG re-save?</th></tr></thead>
+      <tbody>
+        <tr><td>Plain LSB (top to bottom)</td><td>Most</td><td>No: changes are clustered and easy to spot statistically</td><td>No</td></tr>
+        <tr class="m4-ours"><td><b>Ours: busy areas + matrix embedding + random order</b></td><td>About 1/5 of plain LSB</td><td>Harder: fewer changes, spread out, in textured areas</td><td>No (use PNG)</td></tr>
+        <tr class="m4-ours"><td><b>Ours: JPEG QIM + error correction</b></td><td>Little</td><td>Changes can be visible</td><td>Yes, in our tests</td></tr>
+        <tr><td>Research methods (F5, J-UNIWARD)</td><td>Medium</td><td>Hardest</td><td>Partly</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Other ways to hide in text</h3>
+    <div class="m4-table-wrap"><table class="m4-table">
+      <thead><tr><th>Method</th><th>How</th><th>Weakness</th></tr></thead>
+      <tbody>
+        <tr class="m4-ours"><td><b>Ours: zero-width characters (2 bits each)</b></td><td>Invisible Unicode characters</td><td>Some apps strip them; a scanner finds them</td></tr>
+        <tr><td>Trailing whitespace (e.g. SNOW)</td><td>Spaces and tabs at line ends</td><td>Editors and e-mail often delete them</td></tr>
+        <tr><td>Synonyms ("big" = 0, "large" = 1)</td><td>Word choice</td><td>Very little space; text can sound odd</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Compared to existing apps</h3>
+    <p>We looked at popular tools: OpenStego, Steghide, StegOnline, StegCloak and SNOW. They hide messages well, but most are "black boxes": you press a button and get a file back, without seeing what changed or why. Stego Mail adds <strong>sending to other users</strong>, a <strong>built-in gallery</strong>, a <strong>history</strong> of what you did, and this page, which <strong>shows every step</strong> using the real code.</p>
+    <div class="m4-note warn"><b>Honest limits.</b> No method is undetectable. A specialist with steganalysis tools may still notice hidden data, especially if they have many of your pictures. A password protects the <em>content</em>, not the fact that something is hidden. Never resize, crop, screenshot or convert a received picture before revealing it.</div>
+  </section>
+</div>

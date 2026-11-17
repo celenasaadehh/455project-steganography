@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('member4.static', filename='member4.css') }}"><!-- Member 4 -->
   <script>try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;const a=localStorage.getItem('accent');if(a)document.documentElement.dataset.accent=a;}catch(e){}</script>
 </head>
 <body>
@@ -64,7 +65,8 @@
       <button data-nav="inbox" class="active"><svg viewBox="0 0 24 24"><path d="M3 12l3-7h12l3 7v7H3z"/><path d="M3 12h5l2 3h4l2-3h5"/></svg>Inbox<span class="badge" data-unread hidden></span></button>
       <button data-nav="sent"><svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>Sent</button>
       <button data-nav="gallery"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Gallery</button>
-      <button data-nav="tutorial"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Tutorial</button>
+      <button data-nav="tutorial"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Learn</button>
+      <button data-nav="history"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>History</button><!-- Member 4 -->
       <button data-nav="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Settings</button>
     </nav>
     <button class="side-out" data-logout><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</button>
@@ -153,14 +155,11 @@
         <div class="tstep"><span class="n">3</span><div><h3>Write and lock</h3><p>Type the secret. Add a password and share it with your friend another way, like a phone call.</p></div></div>
         <div class="tstep"><span class="n">4</span><div><h3>They reveal it</h3><p>In their Inbox, the picture looks ordinary. With the password, the hidden message appears.</p></div></div>
       </div>
-      <details class="how">
-        <summary>How it works</summary>
-        <p><b>Images</b> · Colour values change by at most 1 of 255, only in busy areas. PNG holds the most. JPEG hides inside the compressed data so it can survive a re-save.</p>
-        <p><b>Text</b> · The secret becomes invisible zero-width characters placed inside normal words.</p>
-        <p><b>Lock</b> · AES-256-GCM encryption, key from your password. Wrong password or an edited file is refused.</p>
-      </details>
+      {% include "member4/learn.html" %}<!-- Member 4 -->
       <button class="btn primary" data-compose-open>Send your first message</button>
     </section>
+
+    {% include "member4/history.html" %}<!-- Member 4 -->
 
     <!-- Settings -->
     <section class="view" data-view="settings" hidden>
@@ -424,5 +423,6 @@
 </template>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
+<script src="{{ url_for('member4.static', filename='member4.js') }}"></script><!-- Member 4 -->
 </body>
 </html>

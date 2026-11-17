@@ -23,11 +23,13 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "Member 1"))
+sys.path.insert(0, str(ROOT.parent / "Member 4"))
 
 import image_stego as img  # noqa: E402  (Member 1's module)
 import text_stego as txt  # noqa: E402
 import db  # noqa: E402
 import mailer  # noqa: E402
+import member4  # noqa: E402  (Member 4: Learn tab + History tab)
 
 VERIFY_EMAIL = os.environ.get("STEGO_VERIFY_EMAIL", "0") == "1"  # off for now: accounts work without the e-mailed code
 ACCENTS = ("navy", "sky", "red", "green", "purple")  # app colour choices in Settings
@@ -64,6 +66,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
+member4.init_app(app)  # Member 4: Learn + History (see ../Member 4/README.md)
 # Sessions are not permanent: the cookie ends when the browser closes, and the
 # page itself signs out on every load, so users sign in each time they enter.
 

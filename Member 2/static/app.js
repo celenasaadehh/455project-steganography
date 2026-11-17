@@ -148,7 +148,7 @@
     fillPrefs(); fillNotify(); fillAbout(null); updateTitle();
   }
 
-  const TITLES = { inbox: 'Inbox', sent: 'Sent', gallery: 'Gallery', tutorial: 'Tutorial', settings: 'Settings' };
+  const TITLES = { inbox: 'Inbox', sent: 'Sent', gallery: 'Gallery', tutorial: 'Learn', history: 'History', settings: 'Settings' };
   function showView(name) {
     state.view = name;
     $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name && b.closest('.nav')));
