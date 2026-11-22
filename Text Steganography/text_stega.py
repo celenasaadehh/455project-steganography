@@ -1,13 +1,26 @@
+"""
+English: original 4-character alphabet, 2 bits per eligible ASCII letter.
+Arabic: 2-character safe alphabet, 2 characters after an ordinary word space
+        to encode 2 bits; avoids Arabic letter joining controls.
+
+"""
 
 from pathlib import Path
+import unicodedata
 import zlib
-# Four invisible Unicode characters; 2 bits per inserted character.
-# They are deliberately different from the text's visible letters.
+
+# Original English format (preserved for backward compatibility).
 SYMBOLS = ("\u200b", "\u200c", "\u2060", "\u2063")
 SYMBOL_TO_VALUE = {symbol: index for index, symbol in enumerate(SYMBOLS)}
-MAGIC = b"TS"  # Recognizes this format when decoding
-HEADER_BYTES = 4  # 2 magic bytes + 2 bytes of secret length
-CHECKSUM_BYTES = 4  # CRC32 detects accidental corruption
+
+# Arabic-safe format: no ZWNJ (which can change joining), and no U+2063.
+# Each ordinary-space anchor receives TWO symbols (one per bit).
+ARABIC_BIT_SYMBOLS = ("\u200b", "\u2060")
+ARABIC_SYMBOL_TO_BIT = {symbol: index for index, symbol in enumerate(ARABIC_BIT_SYMBOLS)}
+
+MAGIC = b"TS"
+HEADER_BYTES = 4           # 2-byte signature + 2-byte message length
+CHECKSUM_BYTES = 4         # CRC32 detects accidental changes
 OVERHEAD_BYTES = HEADER_BYTES + CHECKSUM_BYTES
 MAX_SECRET_BYTES = 65535
 
@@ -16,33 +29,66 @@ def _ascii_letter(character: str) -> bool:
     return "A" <= character <= "Z" or "a" <= character <= "z"
 
 
+def _arabic_letter(character: str) -> bool:
+    return (
+        unicodedata.category(character).startswith("L")
+        and unicodedata.name(character, "").startswith("ARABIC")
+    )
+
+
+def _english_positions(carrier: str) -> list[int]:
+    return [i for i, character in enumerate(carrier) if _ascii_letter(character)]
+
+
+def _arabic_space_positions(carrier: str) -> list[int]:
+    """Ordinary spaces before Arabic words (never inside an Arabic word).
+
+    After such a space, control characters cannot separate joined Arabic letters.
+    A carrier with few spaces still cannot hold a long message.
+    """
+    return [
+        i for i in range(1, len(carrier) - 1)
+        if carrier[i] == " " and _arabic_letter(carrier[i + 1])
+    ]
+
+
+def _choose_mode_and_positions(carrier: str) -> tuple[str, list[int]]:
+    english_positions = _english_positions(carrier)
+    arabic_positions = _arabic_space_positions(carrier)
+    if len(arabic_positions) > len(english_positions):
+        return "Arabic (between words)", arabic_positions
+    return "English (after letters)", english_positions
+
+
 def _check_carrier(carrier: str) -> None:
     if not isinstance(carrier, str) or not carrier.strip():
         raise ValueError("Enter a nonempty carrier paragraph.")
     if any(character in SYMBOL_TO_VALUE for character in carrier):
         raise ValueError(
             "The carrier already contains reserved invisible characters. "
-            "Use a clean paragraph."
+            "Use a clean original paragraph."
         )
 
 
 def capacity_info(carrier: str) -> dict:
-    """Calculate theoretical payload capacity for this exact carrier."""
+    """Calculate available hiding positions and maximum UTF-8 payload bytes."""
     _check_carrier(carrier)
-    available_letters = sum(_ascii_letter(c) for c in carrier)
-    # 4 carrier letters hold 1 byte (2 hidden bits per letter).
+    mode, positions = _choose_mode_and_positions(carrier)
+    available = len(positions)
     return {
-        "carrier_letters": available_letters,
-        "raw_capacity_bits": 2 * available_letters,
+        "mode": mode,
+        "carrier_letters": available,  # Retained for old website integrations.
+        "eligible_positions": available,
+        "raw_capacity_bits": 2 * available,
         "max_secret_bytes": min(
-            MAX_SECRET_BYTES, max(0, available_letters // 4 - OVERHEAD_BYTES)
+            MAX_SECRET_BYTES, max(0, available // 4 - OVERHEAD_BYTES)
         ),
         "overhead_bits": 8 * OVERHEAD_BYTES,
     }
 
 
 def encode_text(carrier: str, secret: str) -> str:
-    """Return stego text; decode_text needs only this output."""
+    """Hide a secret and return the stego paragraph."""
     _check_carrier(carrier)
     if not isinstance(secret, str) or not secret:
         raise ValueError("Enter a nonempty secret message.")
@@ -51,25 +97,33 @@ def encode_text(carrier: str, secret: str) -> str:
     if len(secret_bytes) > MAX_SECRET_BYTES:
         raise ValueError("Secret must be 65535 UTF-8 bytes or fewer.")
 
+    mode, positions = _choose_mode_and_positions(carrier)
     info = capacity_info(carrier)
     if len(secret_bytes) > info["max_secret_bytes"]:
-        required_letters = 4 * (OVERHEAD_BYTES + len(secret_bytes))
+        needed = 4 * (OVERHEAD_BYTES + len(secret_bytes))
         raise ValueError(
-            f"Not enough carrier capacity: {len(secret_bytes)} secret bytes "
-            f"need at least {required_letters} English letters; "
-            f"this carrier has {info['carrier_letters']}. "
-            f"Maximum secret here: {info['max_secret_bytes']} bytes."
+            f"Carrier is too short for this secret. It needs at least {needed} "
+            f"hiding positions but has {len(positions)}. "
+            "Use a longer paragraph (more words for Arabic). "
+            f"Maximum secret here: {info['max_secret_bytes']} UTF-8 bytes."
         )
 
     header = MAGIC + len(secret_bytes).to_bytes(2, "big")
     checksum = zlib.crc32(header + secret_bytes).to_bytes(4, "big")
     packet = header + secret_bytes + checksum
     bits = "".join(f"{byte:08b}" for byte in packet)
-    symbols = [SYMBOLS[int(bits[i : i + 2], 2)] for i in range(0, len(bits), 2)]
 
-    # Spread invisible characters evenly among English letters. This is not
-    # needed for decoding, which extracts them in the order they appear.
-    positions = [i for i, character in enumerate(carrier) if _ascii_letter(character)]
+    if mode.startswith("Arabic"):
+        # Two bits -> two low-impact invisible characters after ONE space.
+        # No U+200C, so Arabic joining is not deliberately interrupted.
+        symbols = [
+            ARABIC_BIT_SYMBOLS[int(bits[i])] + ARABIC_BIT_SYMBOLS[int(bits[i + 1])]
+            for i in range(0, len(bits), 2)
+        ]
+    else:
+        # Original four-symbol format for English, unchanged.
+        symbols = [SYMBOLS[int(bits[i:i + 2], 2)] for i in range(0, len(bits), 2)]
+
     n, m = len(symbols), len(positions)
     anchor_to_symbol = {}
     for j, symbol in enumerate(symbols):
@@ -85,31 +139,38 @@ def encode_text(carrier: str, secret: str) -> str:
 
 
 def decode_text(stego: str) -> str:
-    """Extract and validate a UTF-8 secret WITHOUT the original carrier."""
+    """Recover message without the original carrier; reads both formats."""
     if not isinstance(stego, str) or not stego:
         raise ValueError("Paste or load a stego paragraph first.")
 
-    values = [SYMBOL_TO_VALUE[c] for c in stego if c in SYMBOL_TO_VALUE]
-    if not values:
-        raise ValueError("No hidden message found in this text.")
-    if len(values) % 4:
-        raise ValueError("Hidden message is incomplete or corrupted.")
+    # Original English format ALWAYS contains U+200C in the b'TS' header.
+    old_format = "\u200c" in stego or "\u2063" in stego
+    if old_format:
+        values = [SYMBOL_TO_VALUE[c] for c in stego if c in SYMBOL_TO_VALUE]
+        if len(values) % 4:
+            raise ValueError("Hidden message is incomplete or corrupted.")
+        bits = "".join(f"{value:02b}" for value in values)
+    else:
+        values = [ARABIC_SYMBOL_TO_BIT[c] for c in stego if c in ARABIC_SYMBOL_TO_BIT]
+        if len(values) % 8:
+            raise ValueError("Hidden message is incomplete or corrupted.")
+        bits = "".join(str(value) for value in values)
 
-    bits = "".join(f"{value:02b}" for value in values)
-    packet = bytes(int(bits[i : i + 8], 2) for i in range(0, len(bits), 8))
+    if not bits:
+        raise ValueError("No hidden message found in this text.")
+    packet = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8))
     if len(packet) < OVERHEAD_BYTES or packet[:2] != MAGIC:
         raise ValueError("This text does not contain a valid TS stego message.")
 
     secret_length = int.from_bytes(packet[2:4], "big")
-    expected_packet_bytes = OVERHEAD_BYTES + secret_length
-    if len(packet) != expected_packet_bytes:
-        raise ValueError("Hidden message length does not match; text may have been changed.")
+    if len(packet) != OVERHEAD_BYTES + secret_length:
+        raise ValueError("Hidden message length does not match; text may have changed.")
 
     payload = packet[HEADER_BYTES:-CHECKSUM_BYTES]
     found_checksum = int.from_bytes(packet[-CHECKSUM_BYTES:], "big")
     expected_checksum = zlib.crc32(packet[:HEADER_BYTES] + payload)
     if found_checksum != expected_checksum:
-        raise ValueError("Hidden message failed the checksum: the text was modified.")
+        raise ValueError("Hidden message failed CRC32 check; text was modified.")
 
     try:
         return payload.decode("utf-8")
@@ -118,8 +179,8 @@ def decode_text(stego: str) -> str:
 
 
 def remove_hidden_symbols(stego: str) -> str:
-    """For demonstration: reveal the original visible carrier text."""
-    return "".join(character for character in stego if character not in SYMBOL_TO_VALUE)
+    """Remove zero-width encoding characters to recover the original carrier."""
+    return "".join(c for c in stego if c not in SYMBOL_TO_VALUE)
 
 
 def main() -> None:
@@ -141,13 +202,14 @@ def main() -> None:
             decoded = decode_text(path.read_text(encoding="utf-8"))
 
             print("\n--- ENCODER ---")
-            print("Carrier English letters:", info["carrier_letters"])
+            print("Hiding method:", info["mode"])
+            print("Available hiding positions:", info["eligible_positions"])
             print("Max secret size for this carrier:", info["max_secret_bytes"], "UTF-8 bytes")
             print("Secret bytes:", len(secret.encode("utf-8")))
-            print("Visible text unchanged:", remove_hidden_symbols(stego) == carrier)
+            print("Original text preserved exactly:", remove_hidden_symbols(stego) == carrier)
             print("Saved stego text to:", path)
-            print("Stego paragraph (looks normal):\n", stego)
-            print("\n--- INDEPENDENT DECODER TEST ---")
+            print("Stego paragraph (may display differently in some apps):\n", stego)
+            print("\n--- SAVED-FILE DECODER TEST ---")
             print("Recovered secret:", decoded)
             print("Match:", decoded == secret)
 
@@ -163,7 +225,8 @@ def main() -> None:
         elif mode == "4":
             carrier = input("Enter your carrier paragraph: ")
             info = capacity_info(carrier)
-            print("\nCarrier English letters:", info["carrier_letters"])
+            print("\nHiding method:", info["mode"])
+            print("Available hiding positions:", info["eligible_positions"])
             print("Raw embedding capacity:", info["raw_capacity_bits"], "bits")
             print("Protocol overhead:", info["overhead_bits"], "bits")
             print("Maximum secret:", info["max_secret_bytes"], "UTF-8 bytes")
