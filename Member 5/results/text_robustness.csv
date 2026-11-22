@@ -1,0 +1,18 @@
+edit,result
+no change (copied exactly),message recovered
+text added at the end (a reply),message recovered
+text added at the start,message recovered
+changed to upper case,message recovered
+spaces trimmed at both ends,message recovered
+repeated spaces collapsed,message recovered
+wrapped to 40 columns,message recovered
+Unicode normalisation NFC,message recovered
+Unicode normalisation NFKC,message recovered
+stored as JSON and read back,message recovered
+stored as UTF-16 and read back,message recovered
+a reply that contains a joined emoji,rejected (TextStegoError)
+another stego text pasted after it,rejected (TextStegoError)
+one hidden character deleted,rejected (TextStegoError)
+only the first half copied,rejected (TextStegoError)
+sent through an ASCII-only system,rejected (TextStegoError)
+non-printable characters removed,rejected (TextStegoError)

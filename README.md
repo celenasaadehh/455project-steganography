@@ -94,7 +94,8 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 455project-steganography/
 ├── Member 1/   Image steganography (PNG, BMP, JPEG)
 ├── Member 2/   Text steganography + the Stego Mail website
-└── Member 4/   Learn tab, step-by-step walkthrough, History tab, research
+├── Member 4/   Learn tab, step-by-step walkthrough, History tab, research
+└── Member 5/   Automated tests, capacity and distortion evaluation, birthday attack experiment
 ```
 
 | Member | Responsibility | Main files |
@@ -103,7 +104,7 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 | **2: Text steganography** | Zero-width text algorithm, plus the Flask website: accounts, compose, inbox, gallery, database | `Member 2/text_stego.py`, `Member 2/app.py`, `Member 2/templates/`, `Member 2/static/` |
 | **3: Main web application & integration** | UI and integration of the algorithms | *in progress* |
 | **4: Educational & convenience features** | Learn tab, step-by-step visualisation of the real algorithms, History tab, research on similar applications | `Member 4/` |
-| **5: Testing, evaluation & birthday attack** | Automated tests, distortion and capacity measurements, birthday attack experiment | *in progress* |
+| **5: Testing, evaluation & birthday attack** | Automated tests, distortion and capacity measurements, birthday attack experiment | `Member 5/tests/`, `Member 5/evaluate_images.py`, `Member 5/evaluate_text.py`, `Member 5/birthday_attack.py`, `Member 5/results/` |
 
 Each member folder has its own README with more detail. Member 1's `support/TECHNICAL_GUIDE.md` documents the image algorithms in depth, and `Member 4/docs/research-similar-apps.md` compares Stego Mail with existing tools (OpenStego, Steghide, StegOnline, StegCloak, SNOW, Steganography Studio).
 
@@ -143,8 +144,9 @@ From the repository root:
 ```sh
 python -m unittest discover -s "Member 1/support/tests" -v   # image algorithms (JPEG/HEIC tests need the native build)
 python -m unittest discover -s "Member 4/tests" -v           # Learn traces + History
+python -m unittest discover -s "Member 5/tests" -v           # 150 tests: all algorithms, website, History, birthday maths
 ```
-Member 4's tests also check that every group of 7 values changes at most one value by exactly 1, and that the secret message is never written to the history.
+Member 4's tests also check that every group of 7 values changes at most one value by exactly 1, and that the secret message is never written to the history. Member 5's folder also measures capacity and image distortion, compares the two text methods, and runs the birthday attack experiment on the CRC-32 checksum; results and charts are in `Member 5/results/` and summarised in `Member 5/README.md`.
 
 ---
 

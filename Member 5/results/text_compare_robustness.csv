@@ -1,0 +1,10 @@
+edit,text_stego.py (website),text_stega.py (Text Steganography folder)
+text added at the end (a reply),message recovered,message recovered
+changed to upper case,message recovered,message recovered
+wrapped to 40 columns,message recovered,message recovered
+Unicode normalisation NFKC,message recovered,message recovered
+a reply that contains a joined emoji,rejected,message recovered
+another stego text pasted after it,rejected,rejected
+one hidden character deleted,rejected,rejected
+only the first half copied,message recovered,rejected
+sent through an ASCII-only system,rejected,rejected

@@ -1,0 +1,7 @@
+cover,message_recovered,invisible_characters_in_cover,kept_after_hiding,visible_text_unchanged
+English sentence,True,0,0,True
+Arabic sentence,True,0,0,True
+French with accents,True,0,0,True
+one word,True,0,0,True
+emoji joined with U+200D (family),True,2,0,False
+Persian word with U+200C,True,1,0,False

@@ -1,0 +1,58 @@
+Birthday attack experiment
+Warm-up: 23 people, 365 days -> chance of a shared birthday 50%.
+
+PART 1  How many messages until two have the same check value?
+        Random 16-byte messages, SHA-256 cut to n bits, 300 runs per size.
+
+Tries until the first collision
+  check_value_bits  possible_values  runs  measured_mean_tries  measured_median_tries  theory_mean_tries  measured_over_theory
+  ----------------  ---------------  ----  -------------------  ---------------------  -----------------  --------------------
+  8                 256              300   20.5                 19.0                   20.7               0.989               
+  12                4096             300   76.8                 69.0                   80.9               0.95                
+  16                65536            300   333.9                314.0                  321.5              1.039               
+  20                1048576          300   1340.3               1275.5                 1284.1             1.044               
+  24                16777216         300   5041.1               4746.0                 5134.2             0.982               
+  28                268435456        300   20995.3              19849.5                20535.0            1.022               
+  32                4294967296       300   80565.5              75007.5                82137.9            0.981               
+
+PART 2  The project's own checksum: CRC-32
+        600 runs. Mean 82,972 messages until the first collision (theory 82,138).
+        Half of the runs had a collision within 79,043 messages (theory 77,163).
+        A full search of all 2^32 = 4,294,967,296 values was never needed.
+        Example: 91d6998a2fbb1e09b57781c2df4ecc95 and f9a36b3a38a87c3e2a3baf7552e8eedc both have CRC-32 5a7da048 (found after 38,688 messages).
+
+PART 3  Using the attack on our own steganography (no password)
+        Harmless message: 'Meeting moved to 5 pm, room 204. [ref HROMJN60]'
+        Harmful message:  'Send me all the exam answers now [ref UZVEOP1D]'
+        Both have CRC-32 4c5363bb. Found with 163,060 checksums in 0.08 s.
+
+        Text carrier: hide the harmless message, then swap the hidden bytes and keep the checksum.
+          reveal() before the swap: 'Meeting moved to 5 pm, room 204. [ref HROMJN60]'
+          reveal() after the swap:  'Send me all the exam answers now [ref UZVEOP1D]'
+          visible text unchanged:   True
+          -> swap ACCEPTED, no error
+
+        Image carrier: same idea on a PNG produced by embed().
+          extract() before the swap: 'Meeting moved to 5 pm, room 204. [ref HROMJN60]'
+          extract() after the swap:  'Send me all the exam answers now [ref UZVEOP1D]'
+          -> swap ACCEPTED, no error
+
+        With a password (AES-256-GCM, 128-bit tag that depends on the key):
+          text carrier, one hidden character changed:  rejected
+          image carrier, one embedded value changed:    rejected
+
+PART 4  What a longer check value buys
+
+Work for a 50% chance of a collision (this laptop: 5,635,862 checksums per second in Python)
+  check_value_bits  used_for                                    tries_for_50_percent  time_on_this_laptop  time_at_one_billion_per_second
+  ----------------  ------------------------------------------  --------------------  -------------------  ------------------------------
+  32                CRC-32: both carriers without a password    77,163                under a second       under a second                
+  64                a 64-bit check value                        5,056,937,541         15 minutes           5 seconds                     
+  128               AES-GCM tag: both carriers with a password  2.17e+19              122,119 years        688 years                     
+  256               SHA-256                                     4.01e+38              2.3e+24 years        1.3e+22 years                 
+
+        Each extra bit of check value multiplies the work by 1.41; doubling the size squares it.
+        The GCM tag also depends on the secret key, so an attacker cannot even compute it offline.
+
+Charts: birthday_tries_vs_bits.png and birthday_crc32_probability.png
+All tables and charts are in /Users/tatiana/Downloads/455project/Member 5/results
