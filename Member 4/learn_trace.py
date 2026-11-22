@@ -26,10 +26,10 @@ BITS_SHOWN = 512      # cap on bits sent to the page
 
 CHANNELS = "RGB"
 TEXT_SYMBOLS = {      # Member 2's alphabet: 4 invisible characters, 2 bits each
-    "​": ("00", "U+200B", "Zero Width Space"),
-    "‌": ("01", "U+200C", "Zero Width Non-Joiner"),
-    "‍": ("10", "U+200D", "Zero Width Joiner"),
-    "⁠": ("11", "U+2060", "Word Joiner"),
+    "\u200b": ("00", "U+200B", "Zero Width Space"),
+    "\u200c": ("01", "U+200C", "Zero Width Non-Joiner"),
+    "\u200d": ("10", "U+200D", "Zero Width Joiner"),
+    "\u2060": ("11", "U+2060", "Word Joiner"),
 }
 
 

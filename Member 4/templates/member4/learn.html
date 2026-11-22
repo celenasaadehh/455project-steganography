@@ -7,6 +7,8 @@
     <a href="#m4-text">Text</a>
     <a href="#m4-lock">Password lock</a>
     <a href="#m4-try">See it step by step</a>
+    <a href="#m4-detect">🔍 Detection lab</a>
+    <a href="#m4-robust">🧪 What breaks it?</a>
     <a href="#m4-compare">Compared to others</a>
   </nav>
 
@@ -109,8 +111,10 @@
     <!-- picture -->
     <div data-m4-panel="img">
       <label class="m4-label">1. Pick a picture</label>
-      <div class="m4-picker" data-m4-picker><span class="m4-muted">Loading gallery…</span></div>
+      <div data-m4-lab="walk">
+      <div class="m4-picker" data-m4-picker data-default="1"><span class="m4-muted">Loading gallery…</span></div>
       <label class="m4-upload">or upload your own <input type="file" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" data-m4-upload></label>
+      </div>
       <div class="m4-two">
         <label class="m4-label">2. Secret message<input type="text" data-m4-img-msg value="Meet me at 5pm" maxlength="500"></label>
         <label class="m4-label">3. Password (optional)<input type="text" data-m4-img-pw placeholder="Leave empty for no lock" autocomplete="off"></label>
@@ -130,6 +134,58 @@
       <button class="btn primary" data-m4-txt-go>Hide it and show me</button>
       <div class="status" data-m4-txt-status></div>
       <div class="m4-walk" data-m4-txt-walk hidden></div>
+    </div>
+  </section>
+
+  <!-- ===================== LAB 1: DETECTION ===================== -->
+  <section class="m4-card" id="m4-detect">
+    <h2>🔍 Lab: can it be detected?</h2>
+    <p>Hiding a message is only half the story. <strong>Steganalysis</strong> is the science of <em>finding</em> hidden messages. This lab hides the <strong>same random message</strong> in the same picture two ways, with <b>plain LSB</b> (the textbook method) and with <b>our app</b>, then attacks both with a classic detector:</p>
+    <p><b>The chi-square attack</b> (Westfeld &amp; Pfitzmann, 2000). LSB hiding makes each pair of colour values (like 100 and 101) appear almost equally often. The attack reads the picture from top to bottom and measures how "suspiciously equal" those pairs are, giving a probability from 0% to 100% that data is hidden.</p>
+    <div class="m4-lab" data-m4-lab="detect">
+      <label class="m4-label">Picture</label>
+      <div class="m4-picker" data-m4-picker data-default="3"><span class="m4-muted">Loading gallery…</span></div>
+      <label class="m4-upload">or upload your own photo <input type="file" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" data-m4-upload></label>
+      <div class="m4-label">How much to hide
+        <div class="m4-seg" data-m4-size>
+          <button type="button" data-v="small">Small (2 KB)</button>
+          <button type="button" data-v="medium" class="active">Medium (12 KB)</button>
+          <button type="button" data-v="large">Large (40 KB)</button>
+        </div>
+      </div>
+      <button class="btn primary" data-m4-detect-go>Hide and attack</button>
+      <div class="status" data-m4-detect-status></div>
+      <div data-m4-detect-out hidden></div>
+    </div>
+  </section>
+
+  <!-- ===================== LAB 2: ROBUSTNESS ===================== -->
+  <section class="m4-card" id="m4-robust">
+    <h2>🧪 Lab: what breaks the message?</h2>
+    <p>On its way to the recipient, a picture or text can be changed by apps, by editing or by people. This lab hides a message with <strong>our real code</strong>, applies everyday changes one by one, and tries to reveal the message after each.</p>
+    <div class="m4-tabs" role="tablist">
+      <button class="m4-tab active" data-m4-rtab="img" role="tab">Picture</button>
+      <button class="m4-tab" data-m4-rtab="txt" role="tab">Text</button>
+    </div>
+    <div class="m4-lab" data-m4-lab="robust" data-m4-rpanel="img">
+      <div class="m4-picker" data-m4-picker data-default="2"><span class="m4-muted">Loading gallery…</span></div>
+      <label class="m4-upload">or upload your own <input type="file" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" data-m4-upload></label>
+      <div class="m4-two">
+        <label class="m4-label">Secret message<input type="text" data-m4-rimg-msg value="Meet me at 5pm" maxlength="300"></label>
+        <label class="m4-label">Password (optional)<input type="text" data-m4-rimg-pw placeholder="Leave empty for no lock" autocomplete="off"></label>
+      </div>
+      <button class="btn primary" data-m4-rimg-go>Run the tests</button>
+      <div class="status" data-m4-rimg-status></div>
+      <div data-m4-rimg-out hidden></div>
+    </div>
+    <div data-m4-rpanel="txt" hidden>
+      <div class="m4-two">
+        <label class="m4-label">Cover sentence<textarea data-m4-rtxt-cover>See you at the library tomorrow, don't be late!</textarea></label>
+        <label class="m4-label">Secret message<textarea data-m4-rtxt-msg>gate B, 5pm</textarea></label>
+      </div>
+      <button class="btn primary" data-m4-rtxt-go>Run the tests</button>
+      <div class="status" data-m4-rtxt-status></div>
+      <div data-m4-rtxt-out hidden></div>
     </div>
   </section>
 

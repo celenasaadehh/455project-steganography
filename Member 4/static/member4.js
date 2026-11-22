@@ -64,29 +64,46 @@
     e.preventDefault(); $(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
 
-  /* ---------- picture picker (Member 2's gallery) ---------- */
-  const picker = { gallery: null, file: null, loaded: false };
-  async function loadPicker() {
-    if (picker.loaded) return;
-    const box = $('[data-m4-picker]'); if (!box) return;
-    let data;
-    try { data = await (await fetch('/api/gallery')).json(); } catch { data = null; }
-    if (!data?.ok) { box.innerHTML = '<span class="m4-muted">Could not load the gallery. You can still upload a picture.</span>'; return; }
-    picker.loaded = true;
-    box.innerHTML = data.items.map(g => `<button type="button" class="m4-pick" data-id="${esc(g.id)}" title="${esc(g.name)}"><img src="${esc(g.thumb_url)}" alt="" loading="lazy">${esc(g.name)}</button>`).join('');
-    $$('.m4-pick', box).forEach(b => b.onclick = () => choose(b.dataset.id));
-    if (data.items.length) choose(data.items[0].id);
+  /* ---------- picture pickers (Member 2's gallery), one per [data-m4-lab] ---------- */
+  const pickers = {};            // lab name -> { gallery, file }
+  let galleryItems = null;
+  async function loadPickers() {
+    if (!galleryItems) {
+      let data;
+      try { data = await (await fetch('/api/gallery')).json(); } catch { data = null; }
+      if (!data?.ok) {
+        $$('[data-m4-picker]').forEach(box => { box.innerHTML = '<span class="m4-muted">Could not load the gallery. You can still upload a picture.</span>'; });
+        return;
+      }
+      galleryItems = data.items;
+    }
+    $$('[data-m4-lab]').forEach(lab => {
+      const box = $('[data-m4-picker]', lab); if (!box || box.dataset.ready) return;
+      const name = lab.dataset.m4Lab, state = pickers[name] = { gallery: null, file: null };
+      box.dataset.ready = '1';
+      box.innerHTML = galleryItems.map(g => `<button type="button" class="m4-pick" data-id="${esc(g.id)}" title="${esc(g.name)}"><img src="${esc(g.thumb_url)}" alt="" loading="lazy">${esc(g.name)}</button>`).join('');
+      const up = $('[data-m4-upload]', lab);
+      const choose = (id) => {
+        state.gallery = id; state.file = null; if (up) up.value = '';
+        $$('.m4-pick', box).forEach(b => b.classList.toggle('active', b.dataset.id === id));
+      };
+      $$('.m4-pick', box).forEach(b => b.onclick = () => choose(b.dataset.id));
+      up?.addEventListener('change', (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        state.file = f; state.gallery = null;
+        $$('.m4-pick', box).forEach(b => b.classList.remove('active'));
+      });
+      const want = galleryItems.find(g => String(g.id) === box.dataset.default) || galleryItems[0];
+      if (want) choose(String(want.id));
+    });
   }
-  function choose(id) {
-    picker.gallery = id; picker.file = null;
-    const up = $('[data-m4-upload]'); if (up) up.value = '';
-    $$('.m4-pick').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+  /** Adds the chosen picture of a lab to a form; returns false if nothing is chosen. */
+  function addPicture(name, form) {
+    const p = pickers[name];
+    if (!p || (!p.gallery && !p.file)) return false;
+    if (p.file) form.append('image', p.file); else form.append('gallery', p.gallery);
+    return true;
   }
-  $('[data-m4-upload]')?.addEventListener('change', (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    picker.file = f; picker.gallery = null;
-    $$('.m4-pick').forEach(b => b.classList.remove('active'));
-  });
 
   /* ================= PICTURE WALKTHROUGH ================= */
   function groupCard(g, i) {
@@ -180,11 +197,10 @@
     setStatus(st, '');
     const msg = $('[data-m4-img-msg]').value;
     if (!msg.trim()) return setStatus(st, 'Type a secret message first.');
-    if (!picker.gallery && !picker.file) return setStatus(st, 'Pick a picture first.');
     const f = new FormData();
+    if (!addPicture('walk', f)) return setStatus(st, 'Pick a picture first.');
     f.append('message', msg);
     const pw = $('[data-m4-img-pw]').value; if (pw) f.append('password', pw);
-    if (picker.file) f.append('image', picker.file); else f.append('gallery', picker.gallery);
     busy(btn, true);
     const res = await post('/api/learn/image', f);
     busy(btn, false);
@@ -193,7 +209,7 @@
   });
 
   /* ================= TEXT WALKTHROUGH ================= */
-  const ZW = { '​': ['00', 'z0'], '‌': ['01', 'z1'], '‍': ['10', 'z2'], '⁠': ['11', 'z3'] };
+  const ZW = { '\u200b': ['00', 'z0'], '\u200c': ['01', 'z1'], '\u200d': ['10', 'z2'], '\u2060': ['11', 'z3'] };
   const reveal = (s) => [...s].map(c => ZW[c] ? `<span class="m4-zw ${ZW[c][1]}">${ZW[c][0]}</span>` : esc(c)).join('');
   function revealLimited(s, limit = 260) {
     const hidden = [...s].filter(c => ZW[c]).length;
@@ -279,6 +295,109 @@
     stepper($('[data-m4-txt-walk]'), textSteps(res.trace));
   });
 
+  /* ================= LAB 1: DETECTION ================= */
+  const LINE = { clean: '#94a3b8', plain: '#dc2626', ours: '#2563eb' };
+  const LEVEL = {
+    none: ['ok', 'Not detected'], weak: ['warn', 'Weak signal'], strong: ['fail', 'Detected'],
+  };
+  function chiChart(x, rows) {
+    const W = 640, H = 230, L = 62, R = 26, T = 12, B = 36;
+    const sx = v => L + Math.sqrt(v / 100) * (W - L - R);      // square-root scale: more room for the top of the picture
+    const sy = p => T + (1 - p) * (H - T - B);
+    const grid = [0, 0.5, 1].map(p => `<line x1="${L}" x2="${W - R}" y1="${sy(p)}" y2="${sy(p)}" class="m4-grid"/><text x="${L - 6}" y="${sy(p) + 4}" text-anchor="end">${p * 100}%</text>`).join('');
+    const ticks = [1, 5, 25, 50, 100].map(v => `<text x="${sx(v)}" y="${H - B + 16}" text-anchor="middle">${v}%</text>`).join('');
+    const lines = rows.map(r => `<polyline fill="none" stroke="${LINE[r.key]}" stroke-width="${r.key === 'clean' ? 2 : 2.5}" ${r.key === 'clean' ? 'stroke-dasharray="5 4"' : ''} points="${r.chi.map((p, i) => `${sx(x[i]).toFixed(1)},${sy(p).toFixed(1)}`).join(' ')}"/>`).join('');
+    return `<svg class="m4-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Chi-square attack results">${grid}${ticks}${lines}
+      <text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">how much of the picture the attack has read (top → bottom)</text>
+      <text x="14" y="${(T + H - B) / 2}" transform="rotate(-90 14 ${(T + H - B) / 2})" text-anchor="middle">chance data is hidden</text></svg>`;
+  }
+  function renderDetect(out, lab) {
+    const [clean, plain, ours] = lab.rows;
+    const fewer = plain.changed ? Math.round((1 - ours.changed / plain.changed) * 100) : 0;
+    const card = r => {
+      const [cls, label] = r.key === 'clean' ? (r.false_alarm ? ['warn', 'False alarm at the top'] : ['ok', 'Nothing found']) : LEVEL[r.level];
+      return `<div class="m4-verdict" style="--c:${LINE[r.key]}"><b>${esc(r.name)}</b>
+        <span class="m4-badge ${cls}">${label}</span>
+        <small>${r.key === 'clean' ? 'reference: nothing hidden' : `${fmt(r.changed)} colour values changed (${r.changed_pct}%)`}</small></div>`;
+    };
+    out.innerHTML = `<p>Hidden: <b>${fmt(lab.bytes)} bytes</b> of random data (looks like an encrypted message) in a ${lab.width}×${lab.height} picture. Plain LSB packs it into the first <b>${lab.plain_fill_pct}%</b> of the picture.</p>
+      <div class="m4-verdicts">${lab.rows.map(card).join('')}</div>
+      <h3>Chi-square attack</h3>
+      ${chiChart(lab.x, lab.rows)}
+      <div class="m4-legend"><span><i style="background:${LINE.clean}"></i>clean picture (reference)</span><span><i style="background:${LINE.plain}"></i>plain LSB</span><span><i style="background:${LINE.ours}"></i>our app</span></div>
+      <p>The <b style="color:${LINE.plain}">red line</b> jumps to 100% exactly where plain LSB wrote its data: the attack finds it. The <b style="color:${LINE.ours}">blue line</b> follows the grey reference, so our app looks like a picture with nothing hidden.${clean.false_alarm ? ' (The grey line also rises at the very top: smooth areas like a sky can cause false alarms, which is why we compare against the clean picture.)' : ''}</p>
+      <h3>Where did each method change the picture?</h3>
+      <div class="m4-pics">${lab.rows.slice(1).map(r => `<figure><img class="px" src="${r.map}" alt=""><figcaption>${esc(r.name)}: changed pixels in magenta</figcaption></figure>`).join('')}</div>
+      <p>Plain LSB packs every change into one band at the top, which is exactly the pattern the attack looks for. Our app scatters fewer changes over the busy areas of the whole picture. (An attacker can't draw this map without the original picture; we can, because we made it.)</p>
+      <div class="m4-note ok"><b>Result:</b> our app changed <b>${fewer}% fewer</b> colour values than plain LSB for the same message${ours.level === 'none' ? ', and the attack could not tell it apart from the clean picture.' : `, and the attack gave only a ${ours.level === 'weak' ? 'weak' : 'clear'} signal (plain LSB: ${plain.extra_alarms} alarm points, ours: ${ours.extra_alarms}).`}</div>
+      <p class="m4-muted">Try <b>Large</b>: the more you hide, the easier any method is to detect. Stronger detectors (RS analysis, machine learning) exist; no method is undetectable, but ours makes the attacker's job much harder.</p>`;
+  }
+  $$('[data-m4-size] button').forEach(b => b.addEventListener('click', () => {
+    $$('[data-m4-size] button').forEach(x => x.classList.toggle('active', x === b));
+  }));
+  $('[data-m4-detect-go]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget, st = $('[data-m4-detect-status]'), out = $('[data-m4-detect-out]');
+    setStatus(st, '');
+    const f = new FormData();
+    if (!addPicture('detect', f)) return setStatus(st, 'Pick a picture first.');
+    f.append('size', $('[data-m4-size] .active')?.dataset.v || 'medium');
+    busy(btn, true);
+    const res = await post('/api/learn/detect', f);
+    busy(btn, false);
+    if (!res.ok) return setStatus(st, res.error || 'Something went wrong.');
+    out.hidden = false; renderDetect(out, res.lab);
+    out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  /* ================= LAB 2: ROBUSTNESS ================= */
+  $$('[data-m4-rtab]').forEach(t => t.addEventListener('click', () => {
+    $$('[data-m4-rtab]').forEach(x => x.classList.toggle('active', x === t));
+    $$('[data-m4-rpanel]').forEach(p => { p.hidden = p.dataset.m4Rpanel !== t.dataset.m4Rtab; });
+  }));
+  const mark = ok => ok ? '<span class="m4-badge ok">✓ survives</span>' : '<span class="m4-badge fail">✗ lost</span>';
+  function robustTable(cols, rows) {
+    return `<div class="m4-table-wrap"><table class="m4-table"><thead><tr><th>What happened to it</th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${esc(r.name)}</td>${r.cells.map(c => `<td>${mark(c.ok)}${c.ok ? '' : `<small class="m4-muted" style="display:block">${esc(c.result)}</small>`}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  $('[data-m4-rimg-go]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget, st = $('[data-m4-rimg-status]'), out = $('[data-m4-rimg-out]');
+    setStatus(st, '');
+    const f = new FormData();
+    if (!addPicture('robust', f)) return setStatus(st, 'Pick a picture first.');
+    f.append('message', $('[data-m4-rimg-msg]').value);
+    const pw = $('[data-m4-rimg-pw]').value; if (pw) f.append('password', pw);
+    busy(btn, true);
+    const res = await post('/api/learn/robust-image', f);
+    busy(btn, false);
+    if (!res.ok) return setStatus(st, res.error || 'Something went wrong.');
+    const modes = res.lab.modes;
+    const rows = modes[0].rows.map((r, i) => ({ name: r.name, cells: modes.map(m => m.rows[i]) }));
+    const survived = modes[0].rows.filter(r => r.ok).length;
+    out.hidden = false;
+    out.innerHTML = robustTable(modes.map(m => m.label), rows) +
+      `<p>PNG mode survived <b>${survived} of ${modes[0].rows.length}</b> changes. It hides in the exact last bit of each value, so anything that recalculates the pixels (brightness, resizing, JPEG) erases the message. Cropping or rotating also breaks it, because every pixel moves to a new position.</p>` +
+      (res.lab.jpeg_available ? '<p>JPEG mode is built differently and survives JPEG re-saving, at the cost of much less space.</p>'
+        : '<div class="m4-note">Our app also has a <b>JPEG mode</b> designed to survive JPEG re-saving. It needs a one-time setup on this computer (see Member 1\'s guide); once set up, a second column appears here.</div>') +
+      '<div class="m4-note warn"><b>Lesson:</b> send stego pictures as a file or as PNG. Many chat apps resize and convert photos to JPEG, which erases a PNG-mode message.</div>';
+  });
+  $('[data-m4-rtxt-go]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget, st = $('[data-m4-rtxt-status]'), out = $('[data-m4-rtxt-out]');
+    setStatus(st, '');
+    const f = new FormData();
+    f.append('cover', $('[data-m4-rtxt-cover]').value);
+    f.append('message', $('[data-m4-rtxt-msg]').value);
+    busy(btn, true);
+    const res = await post('/api/learn/robust-text', f);
+    busy(btn, false);
+    if (!res.ok) return setStatus(st, res.error || 'Something went wrong.');
+    const rows = res.lab.rows.map(r => ({ name: r.name, cells: [r] }));
+    const survived = res.lab.rows.filter(r => r.ok).length;
+    out.hidden = false;
+    out.innerHTML = robustTable(['Zero-width text'], rows) +
+      `<p>The text survived <b>${survived} of ${res.lab.rows.length}</b> changes. Visible edits don't matter, because the invisible characters sit after the first word. But anything that deletes invisible characters erases the message${res.lab.rows.find(r => r.key === 'emoji' && !r.ok) ? ', and so does adding a joined emoji, because emoji use one of the same invisible characters (a known issue found by Member 5\'s tests)' : ''}.</p>`;
+  });
+
   /* ================= HISTORY ================= */
   const hist = { items: [] };
   function utc(s) { return new Date(s.replace(' ', 'T') + 'Z'); }
@@ -328,7 +447,7 @@
   /* load data when the tabs are opened */
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]'); if (!nav) return;
-    if (nav.dataset.nav === 'tutorial') loadPicker();
+    if (nav.dataset.nav === 'tutorial') loadPickers();
     if (nav.dataset.nav === 'history') loadHistory();
   });
 })();

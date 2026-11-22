@@ -119,3 +119,17 @@
 .m4-x { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 6px; }
 .m4-x:hover { background: var(--err-bg); color: var(--err); }
 .m4-empty { text-align: center; color: var(--muted); padding: 30px 0 10px; }
+
+/* labs */
+.m4-lab { margin-top: 12px; }
+.m4-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: fit-content; }
+.m4-seg button { font: inherit; font-weight: 500; font-size: 13px; border: none; background: var(--panel); color: var(--muted); padding: 7px 12px; cursor: pointer; }
+.m4-seg button + button { border-left: 1px solid var(--line); }
+.m4-seg button.active { background: var(--blue); color: #fff; }
+.m4-verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 6px; }
+.m4-verdict { background: var(--bg); border: 1px solid var(--line); border-top: 4px solid var(--c); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.m4-verdict small { color: var(--muted); font-size: 12.5px; }
+.m4-badge.warn { background: rgba(245,158,11,.16); color: #b45309; }
+.m4-chart { width: 100%; max-width: 680px; height: auto; display: block; margin: 6px 0; }
+.m4-chart text { font-size: 11px; font-weight: 400; fill: var(--muted); }
+.m4-chart .m4-grid { stroke: var(--line); stroke-width: 1; }

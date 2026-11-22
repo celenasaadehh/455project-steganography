@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 for sub in ("Member 1", "Member 2", "Member 4"):
     sys.path.insert(0, str(ROOT / sub))
 
+import labs  # noqa: E402
 import learn_trace as L  # noqa: E402
 
 GALLERY = ROOT / "Member 2" / "static" / "gallery" / "02-sunset.png"
@@ -84,6 +85,34 @@ class TextTrace(unittest.TestCase):
         self.assertTrue(L.check_text(t["stego"], "k")["found"])
         self.assertTrue(L.check_text(t["stego"])["needs_password"])
         self.assertFalse(L.check_text("plain text")["found"])
+
+
+class Labs(unittest.TestCase):
+    FOREST = ROOT / "Member 2" / "static" / "gallery" / "03-forest.png"
+
+    def test_chi_square_distribution(self):
+        # textbook values: P(X > 3.84 | 1 dof) = 0.05, P(X > 18.31 | 10 dof) = 0.05
+        self.assertAlmostEqual(labs._chi2_sf(3.84, 1), 0.05, places=2)
+        self.assertAlmostEqual(labs._chi2_sf(18.31, 10), 0.05, places=2)
+
+    def test_plain_lsb_is_detected_and_ours_is_not(self):
+        lab = labs.detection_lab(self.FOREST.read_bytes(), "medium")
+        clean, plain, ours = lab["rows"]
+        self.assertEqual(lab["bytes"], 12 * 1024)
+        self.assertEqual(plain["level"], "strong")
+        self.assertEqual(ours["level"], "none")
+        self.assertLess(ours["changed"], plain["changed"])   # matrix embedding changes fewer values
+
+    def test_robustness_image(self):
+        lab = labs.robustness_image(GALLERY.read_bytes(), "hello", password="pw")
+        rows = {r["key"]: r["ok"] for r in lab["modes"][0]["rows"]}
+        self.assertTrue(rows["none"] and rows["png"])
+        self.assertFalse(rows["resize50"] or rows["jpeg75"] or rows["crop"])
+
+    def test_robustness_text(self):
+        rows = {r["key"]: r["ok"] for r in labs.robustness_text("See you tomorrow!", "gate B")["rows"]}
+        self.assertTrue(rows["none"] and rows["append"] and rows["nfc"])
+        self.assertFalse(rows["strip"] or rows["retype"])
 
 
 class HistoryApi(unittest.TestCase):

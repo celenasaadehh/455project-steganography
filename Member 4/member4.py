@@ -7,6 +7,7 @@ Plugs into Member 2's Flask app with two lines in app.py:
 
 It adds:
   * Learn tab API  -> /api/learn/image, /api/learn/text, /api/learn/check-text
+                      /api/learn/detect, /api/learn/robust-image, /api/learn/robust-text (labs.py)
                       (step-by-step traces of the team's REAL algorithms, see learn_trace.py)
   * History tab    -> /api/history (list, delete one, clear, CSV export)
                       Every Send and Reveal is recorded automatically. The secret message
@@ -22,6 +23,7 @@ from pathlib import Path
 from flask import Blueprint, Response, g, jsonify, request, session
 
 import db                 # Member 2's SQLite helpers (same database file)
+import labs
 import learn_trace
 
 HERE = Path(__file__).resolve().parent
@@ -113,6 +115,43 @@ def learn_text():
     except txt.TextStegoError as exc:
         return _fail(str(exc))
     return jsonify(ok=True, trace=trace)
+
+
+@bp.post("/api/learn/detect")
+def learn_detect():
+    import image_stego as img
+    cover = _cover_for_learn()
+    if cover is None:
+        return _fail("Choose a picture from the gallery or upload one.")
+    try:
+        return jsonify(ok=True, lab=labs.detection_lab(cover, request.form.get("size", "medium")))
+    except img.StegoError as exc:
+        return _fail(str(exc))
+
+
+@bp.post("/api/learn/robust-image")
+def learn_robust_image():
+    import image_stego as img
+    message = request.form.get("message", "").strip()
+    if not message:
+        return _fail("Type a secret message first.")
+    cover = _cover_for_learn()
+    if cover is None:
+        return _fail("Choose a picture from the gallery or upload one.")
+    try:
+        return jsonify(ok=True, lab=labs.robustness_image(cover, message, request.form.get("password") or None))
+    except img.StegoError as exc:
+        return _fail(str(exc))
+
+
+@bp.post("/api/learn/robust-text")
+def learn_robust_text():
+    import text_stego as txt
+    try:
+        return jsonify(ok=True, lab=labs.robustness_text(request.form.get("cover", ""), request.form.get("message", ""),
+                                                          request.form.get("password") or None))
+    except txt.TextStegoError as exc:
+        return _fail(str(exc))
 
 
 @bp.post("/api/learn/check-text")
