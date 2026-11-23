@@ -1,16 +1,18 @@
-"""Capacity, overhead and robustness of the team's two text-carrier algorithms.
+"""Overhead, robustness and visibility of the team's text carrier.
 
-The website uses Member 2's text_stego.py. A second algorithm, text_stega.py in the
-"Text Steganography" folder, spreads the hidden characters through the paragraph
-instead. This script measures the first one in detail and then compares the two.
+The website (Member 3) uses Member 2's text_stega.py. It puts the hidden
+characters in one block after the first word: 2 bits per invisible character for
+English text, 1 bit per character when the cover contains Arabic letters, with an
+optional password (AES-256-GCM).
 
 What this script measures:
   1. Overhead:   how much longer the text becomes for secrets of 1 to 10,000 bytes,
-                 with and without a password, and how long hiding and revealing take.
-  2. Robustness: which edits of the stego text keep the message readable.
+                 in English and Arabic mode, with and without a password, and how
+                 long hiding and revealing take.
+  2. Robustness: which edits of the stego text keep the message readable, for an
+                 English and an Arabic cover.
   3. Visibility: whether the visible text is unchanged, for ordinary covers and for
                  covers that already contain invisible characters (emoji, Persian).
-  4. Comparison: capacity, robustness and special covers for both algorithms.
 
 Run from the "Member 5" folder:
     python evaluate_text.py
@@ -26,31 +28,38 @@ import unicodedata
 
 import charts
 import common
-from common import text_stega as spread
-from common import text_stego as stego
+from common import text_stega as stego
 
 COVER = "Hello there, see you at lunch tomorrow."
+ARABIC_COVER = "مرحبا، نلتقي غدا عند الغداء"
 SECRET_SIZES = (1, 10, 50, 100, 500, 1000, 5000, 10000)
+MODES = (
+    ("English", COVER, None),
+    ("English + password", COVER, "timing password"),
+    ("Arabic", ARABIC_COVER, None),
+    ("Arabic + password", ARABIC_COVER, "timing password"),
+)
 
 
 def hidden_count(text: str) -> int:
-    return sum(ch in stego.ALPHABET for ch in text)
+    """Invisible characters of the hidden message (the cover's own joiners are not counted)."""
+    return len(stego.find_hidden(text))
 
 
 def overhead_table() -> list[dict]:
-    cover_bytes = len(COVER.encode("utf-8"))
     rows = []
     for size in SECRET_SIZES:
         secret = "s" * size
-        for label, password in (("no password", None), ("with password", "timing password")):
+        for label, cover, password in MODES:
             hide, show = [], []
             for _ in range(5):
                 start = time.perf_counter()
-                text = stego.hide(COVER, secret, password)
+                text = stego.hide(cover, secret, password)
                 middle = time.perf_counter()
                 assert stego.reveal(text, password) == secret
                 hide.append(middle - start)
                 show.append(time.perf_counter() - middle)
+            cover_bytes = len(cover.encode("utf-8"))
             stego_bytes = len(text.encode("utf-8"))
             rows.append({
                 "secret_bytes": size,
@@ -74,11 +83,10 @@ def outcome(candidate: str, secret: str) -> str:
     return "message recovered" if recovered == secret else "WRONG MESSAGE RETURNED"
 
 
-def robustness_table() -> list[dict]:
-    secret = "robustness test message"
-    text = stego.hide(COVER, secret)
-    first_hidden = next(i for i, ch in enumerate(text) if ch in stego.ALPHABET)
-    edits = {
+def _edits(text: str, other: str) -> dict:
+    run = stego.find_hidden(text)
+    first = text.index(run)
+    return {
         "no change (copied exactly)": text,
         "text added at the end (a reply)": text + " Thanks, see you then!",
         "text added at the start": "Fwd: " + text,
@@ -91,167 +99,75 @@ def robustness_table() -> list[dict]:
         "stored as JSON and read back": json.loads(json.dumps(text)),
         "stored as UTF-16 and read back": text.encode("utf-16").decode("utf-16"),
         "a reply that contains a joined emoji": text + " \U0001F468‍\U0001F469‍\U0001F467",
-        "another stego text pasted after it": text + " " + stego.hide("Second sentence here.", "other"),
-        "one hidden character deleted": text[:first_hidden] + text[first_hidden + 1:],
-        "only the first half copied": text[: len(text) // 2],
+        "another stego text pasted after it": text + " " + other,
+        "one hidden character deleted": text[:first] + text[first + 1:],
+        "cut in the middle of the hidden block": text[: first + len(run) // 2],
+        "cut after the hidden block": text[: first + len(run) + 3],
         "sent through an ASCII-only system": text.encode("ascii", "ignore").decode("ascii"),
         "non-printable characters removed": "".join(ch for ch in text if ch.isprintable()),
     }
-    return [{"edit": name, "result": outcome(edited, secret)} for name, edited in edits.items()]
+
+
+def robustness_table() -> list[dict]:
+    secret = "robustness test message"
+    english = _edits(stego.hide(COVER, secret), stego.hide("Second sentence here.", "other"))
+    arabic = _edits(stego.hide(ARABIC_COVER, secret), stego.hide("جملة ثانية هنا", "other"))
+    return [{"edit": name,
+             "english_cover": outcome(english[name], secret),
+             "arabic_cover": outcome(arabic[name], secret)} for name in english]
 
 
 def visibility_table() -> list[dict]:
     covers = {
         "English sentence": COVER,
-        "Arabic sentence": "مرحبا كيف حالك اليوم",
-        "French with accents": "Ça va très bien, merci beaucoup",
         "one word": "Hello",
+        "French with accents": "Ça va très bien, merci beaucoup",
+        "Japanese": "今日はいい天気ですね",
+        "Arabic sentence": "مرحبا كيف حالك اليوم",
         "emoji joined with U+200D (family)": "Family \U0001F468‍\U0001F469‍\U0001F467 photo attached",
         "Persian word with U+200C": "می‌خواهم بروم",
     }
     rows = []
     for name, cover in covers.items():
-        text = stego.hide(cover, "secret")
-        payload = 4 * (len("secret") + 8)    # hidden characters added for the secret
-        own = hidden_count(cover)            # invisible characters the cover itself needs
-        kept = hidden_count(text) - payload  # how many of those are still there
-        rows.append({
-            "cover": name,
-            "message_recovered": stego.reveal(text) == "secret",
-            "invisible_characters_in_cover": own,
-            "kept_after_hiding": kept,
-            "visible_text_unchanged": kept == own,
-        })
+        for password in (None, "pw"):
+            text = stego.hide(cover, "secret", password)
+            mode, _, _ = stego.read_packet(text)
+            rows.append({
+                "cover": name,
+                "password": "yes" if password else "no",
+                "mode_chosen": mode,
+                "message_recovered": stego.reveal(text, password) == "secret",
+                "hidden_characters": hidden_count(text),
+                "visible_text_unchanged": stego.strip_hidden(text) == cover,
+            })
     return rows
 
 
-# ------------------------------------------------- comparison of the two methods
-
-PARAGRAPH = ("Dear team, the weekly meeting is moved to Thursday afternoon in the main hall. " * 6).strip()
-ARABIC = "مرحبا بكم جميعا في الاجتماع الأسبوعي يوم الخميس بعد الظهر في القاعة الرئيسية " * 3
-WEBSITE = "text_stego.py (website)"
-SPREAD = "text_stega.py (Text Steganography folder)"
-
-
-def spread_capacity(cover: str) -> int:
-    return spread.capacity_info(cover)["max_secret_bytes"]
-
-
-def comparison_capacity_table() -> list[dict]:
-    covers = {
-        "one short sentence": COVER,
-        "two sentences": "Hello there, see you at lunch tomorrow. Please bring the printed notes with you.",
-        "short paragraph (about 50 words)": common.letter_paragraph(250),
-        "long paragraph (about 200 words)": common.letter_paragraph(1000),
-        "one page (about 500 words)": common.letter_paragraph(2500),
-        "Arabic paragraph": ARABIC.strip(),
-    }
-    rows = []
-    for name, cover in covers.items():
-        info = spread.capacity_info(cover)
-        rows.append({
-            "cover": name,
-            "characters": len(cover),
-            "english_letters": info["carrier_letters"],
-            "website_method_capacity_bytes": stego.capacity(),
-            "spread_method_capacity_bytes": info["max_secret_bytes"],
-        })
-    return rows
-
-
-def _spread_outcome(candidate: str, secret: str) -> str:
-    try:
-        recovered = spread.decode_text(candidate)
-    except ValueError:
-        return "rejected"
-    return "message recovered" if recovered == secret else "WRONG MESSAGE RETURNED"
-
-
-def _edits(text: str, hidden: set, other: str) -> dict:
-    first = next(i for i, ch in enumerate(text) if ch in hidden)
-    return {
-        "text added at the end (a reply)": text + " Thanks, see you then!",
-        "changed to upper case": text.upper(),
-        "wrapped to 40 columns": textwrap.fill(text, 40),
-        "Unicode normalisation NFKC": unicodedata.normalize("NFKC", text),
-        "a reply that contains a joined emoji": text + " \U0001F468\u200d\U0001F469\u200d\U0001F467",
-        "another stego text pasted after it": text + " " + other,
-        "one hidden character deleted": text[:first] + text[first + 1:],
-        "only the first half copied": text[: len(text) // 2],
-        "sent through an ASCII-only system": text.encode("ascii", "ignore").decode("ascii"),
-    }
-
-
-def comparison_robustness_table() -> list[dict]:
-    secret = "robustness test"
-    website = _edits(stego.hide(PARAGRAPH, secret), set(stego.ALPHABET), stego.hide(PARAGRAPH, "other"))
-    spreaded = _edits(spread.encode_text(PARAGRAPH, secret), set(spread.SYMBOLS), spread.encode_text(PARAGRAPH, "other"))
-    rows = []
-    for name in website:
-        website_result = outcome(website[name], secret)
-        rows.append({
-            "edit": name,
-            WEBSITE: "rejected" if website_result.startswith("rejected") else website_result,
-            SPREAD: _spread_outcome(spreaded[name], secret),
-        })
-    return rows
-
-
-def comparison_covers_table() -> list[dict]:
-    covers = {
-        "English paragraph": PARAGRAPH,
-        "Arabic paragraph": ARABIC,
-        "paragraph with a family emoji (U+200D)": "Family \U0001F468\u200d\U0001F469\u200d\U0001F467 " + PARAGRAPH,
-        "Persian text (U+200C)": "می\u200cخواهم بروم. " + PARAGRAPH,
-    }
-    rows = []
-    for name, cover in covers.items():
-        website_text = stego.hide(cover, "hi")
-        website_ok = stego.reveal(website_text) == "hi"
-        website_same = sum(ch in stego.ALPHABET for ch in website_text) - 4 * (2 + 8) == hidden_count(cover)
-        try:
-            spread_text = spread.encode_text(cover, "hi")
-            spread_result = ("works, visible text unchanged" if spread.remove_hidden_symbols(spread_text) == cover
-                             and spread.decode_text(spread_text) == "hi" else "visible text changed")
-        except ValueError as error:
-            spread_result = "refused: " + str(error).split(":")[0].split(".")[0].lower()
-        rows.append({
-            "cover": name,
-            WEBSITE: ("works, visible text unchanged" if website_ok and website_same
-                      else "message works, visible text changed" if website_ok else "fails"),
-            SPREAD: spread_result,
-        })
-    return rows
-
-
-def capacity_chart(rows: list[dict]):
-    shown = [row for row in rows if row["english_letters"] > 0]
+def overhead_chart(rows: list[dict]):
     figure, axes = charts.new_chart(
-        "The spread method needs about 4 English letters for every hidden byte",
-        "Largest secret for text_stega.py; the website's method always allows 10,000 bytes", height=3.9)
-    labels = [row["cover"] for row in shown]
-    values = [row["spread_method_capacity_bytes"] for row in shown]
-    axes.barh(labels, values, height=0.42, color=charts.BLUE)
-    axes.invert_yaxis()
-    axes.grid(axis="y", visible=False)
-    axes.grid(axis="x", color=charts.GRID, linewidth=0.8)
-    axes.spines["bottom"].set_visible(False)
-    axes.tick_params(axis="y", labelsize=9.5, colors=charts.INK_SECONDARY)
-    axes.set_xlim(0, max(values) * 1.18)
-    for position, value in enumerate(values):
-        axes.text(value + max(values) * 0.012, position, f"{value:,} bytes", va="center", fontsize=9.5, color=charts.INK)
-    charts.axis_labels(axes, "Largest secret (bytes)")
-    figure.subplots_adjust(left=0.36, top=0.78, bottom=0.17)
-    return charts.save(figure, common.RESULTS / "text_capacity_by_paragraph.png")
+        "Arabic text needs twice as many invisible characters",
+        "Invisible characters added for a secret of each size (log scale)")
+    styles = {"English": (charts.BLUE, "-"), "English + password": (charts.BLUE, "--"),
+              "Arabic": (charts.ORANGE, "-"), "Arabic + password": (charts.ORANGE, "--")}
+    for label, (colour, dash) in styles.items():
+        points = [row for row in rows if row["mode"] == label]
+        lines = charts.line(axes, [row["secret_bytes"] for row in points],
+                            [row["hidden_characters"] for row in points], colour, label)
+        lines[0].set_linestyle(dash)
+    axes.set_xscale("log")
+    axes.set_yscale("log")
+    charts.axis_labels(axes, "Secret size (bytes)", "Invisible characters")
+    charts.legend(axes, loc="upper left")
+    return charts.save(figure, common.RESULTS / "text_overhead.png")
 
 
 def main():
-    print("Evaluating the text algorithm.")
-    print(f"Capacity reported by the module: {stego.capacity():,} bytes, whatever the cover text is.")
+    print("Evaluating the text carrier (Member 2's text_stega.py, used by the website).")
+    print(f"Largest secret: {stego.MAX_SECRET_BYTES:,} bytes, whatever the cover text is.")
 
     overhead = overhead_table()
     common.write_table("text_overhead", overhead)
-    common.print_table(f"Overhead for the cover {COVER!r} ({len(COVER)} characters)", overhead)
+    common.print_table(f"Overhead for {COVER!r} and an Arabic sentence", overhead)
 
     robustness = robustness_table()
     common.write_table("text_robustness", robustness)
@@ -261,19 +177,7 @@ def main():
     common.write_table("text_visibility", visibility)
     common.print_table("Is the visible text unchanged?", visibility)
 
-    if spread is None:
-        print('\nThe "Text Steganography" folder is missing, so the comparison is skipped.')
-    else:
-        capacity = comparison_capacity_table()
-        common.write_table("text_compare_capacity", capacity)
-        common.print_table("Comparison: largest secret for covers of different length", capacity)
-        robust = comparison_robustness_table()
-        common.write_table("text_compare_robustness", robust)
-        common.print_table("Comparison: which edits keep the message readable (same paragraph, same secret)", robust)
-        covers = comparison_covers_table()
-        common.write_table("text_compare_covers", covers)
-        common.print_table("Comparison: covers that are not plain English", covers)
-        print("\nChart:", capacity_chart(capacity).name)
+    print("\nChart:", overhead_chart(overhead).name)
     print(f"\nAll tables are in {common.RESULTS}")
 
 

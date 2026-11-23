@@ -64,7 +64,7 @@
     e.preventDefault(); $(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
 
-  /* ---------- picture pickers (Member 2's gallery), one per [data-m4-lab] ---------- */
+  /* ---------- picture pickers (Member 3's gallery), one per [data-m4-lab] ---------- */
   const pickers = {};            // lab name -> { gallery, file }
   let galleryItems = null;
   async function loadPickers() {
@@ -209,7 +209,10 @@
   });
 
   /* ================= TEXT WALKTHROUGH ================= */
-  const ZW = { '\u200b': ['00', 'z0'], '\u200c': ['01', 'z1'], '\u200d': ['10', 'z2'], '\u2060': ['11', 'z3'] };
+  // Member 2's alphabets: English uses 4 characters (2 bits each), Arabic text uses 2 (1 bit each).
+  const ZW_EN = { '\u200b': ['00', 'z0'], '\u200c': ['01', 'z1'], '\u2060': ['10', 'z2'], '\u2063': ['11', 'z3'] };
+  const ZW_AR = { '\u200b': ['0', 'z0'], '\u2060': ['1', 'z2'] };
+  let ZW = ZW_EN;
   const reveal = (s) => [...s].map(c => ZW[c] ? `<span class="m4-zw ${ZW[c][1]}">${ZW[c][0]}</span>` : esc(c)).join('');
   function revealLimited(s, limit = 260) {
     const hidden = [...s].filter(c => ZW[c]).length;
@@ -241,6 +244,8 @@
   }
 
   function textSteps(t) {
+    ZW = t.bits_per_symbol === 1 ? ZW_AR : ZW_EN;
+    const two = t.bits_per_symbol === 2;
     const hidden = [...t.stego].filter(c => ZW[c]).join('');
     return [
       { title: 'Message → bits', render: el => {
@@ -248,16 +253,16 @@
           ${bitsHtml([{ bits: t.message_bits, cls: 'm' }])}`;
       } },
       { title: 'Build what gets hidden', render: el => {
-        el.innerHTML = `<p>The app wraps your message in a small package of <b>${t.payload_bytes} bytes</b>. Each byte is cut into four 2-bit pairs:</p>
-          <div class="m4-table-wrap"><table class="m4-table"><thead><tr><th>#</th><th>Part</th><th>Byte</th><th>Bits</th><th>Pairs</th></tr></thead><tbody>
+        el.innerHTML = `<p>The app wraps your message in a small package of <b>${t.payload_bytes} bytes</b>. ${two ? 'Each byte is cut into four 2-bit pairs:' : 'Your cover has Arabic letters, so each byte is cut into its 8 single bits (safer between joined letters):'}</p>
+          <div class="m4-table-wrap"><table class="m4-table"><thead><tr><th>#</th><th>Part</th><th>Byte</th><th>Bits</th><th>${two ? 'Pairs' : 'Bits one by one'}</th></tr></thead><tbody>
           ${t.payload_rows.map(r => `<tr><td>${r.index}</td><td>${esc(r.field)}</td><td class="m4-mono">${r.value}</td><td class="m4-mono">${r.bits}</td><td class="m4-mono">${r.pairs.join(' ')}</td></tr>`).join('')}
           </tbody></table></div>${t.payload_bytes > t.payload_rows.length ? `<p class="m4-muted">Showing the first ${t.payload_rows.length} of ${t.payload_bytes} bytes.</p>` : ''}
           ${t.locked ? '<div class="m4-note warn"><b>Locked:</b> the salt, nonce and encrypted bytes look random, and the 16-byte tag at the end detects a wrong password or any edit.</div>'
-                     : '<div class="m4-note">Not locked: after the 4-byte header (<code>ZW</code>, version, lock flag) come your message bytes and a 4-byte CRC check.</div>'}`;
+                     : '<div class="m4-note">Not locked: after the 4-byte header (the <code>TS</code> tag and the message length) come your message bytes and a 4-byte CRC check.</div>'}`;
       } },
       { title: 'Bits → invisible characters', render: el => {
-        el.innerHTML = `<p>Each 2-bit pair becomes one invisible character:</p>
-          <div class="m4-symbols">${t.symbol_table.map((s, i) => `<div><span class="m4-zw z${i}">${s.bits}</span> ${s.code} ${esc(s.name)}</div>`).join('')}</div>
+        el.innerHTML = `<p>${two ? 'Each 2-bit pair' : 'Each bit'} becomes one invisible character:</p>
+          <div class="m4-symbols">${t.symbol_table.map((s, i) => `<div><span class="m4-zw z${two ? i : i * 2}">${s.bits}</span> ${s.code} ${esc(s.name)}</div>`).join('')}</div>
           <p>Your ${t.payload_bytes} bytes become <b>${t.symbols} invisible characters</b> (shown here as coloured boxes; on a real screen you see nothing):</p>
           <div class="m4-textbox">${revealLimited(hidden)}</div>`;
       } },
@@ -271,9 +276,9 @@
         $('[data-m4-copy]', el).onclick = () => navigator.clipboard.writeText(t.stego).then(() => toast('Copied. The secret is inside.'), () => toast('Your browser blocked copying.'));
       } },
       { title: 'Reveal the message', render: el => {
-        el.innerHTML = `<ol class="m4-ol"><li>Keep only the four invisible characters and turn each back into 2 bits.</li>
-          <li>Join every 4 characters into a byte, check the <code>ZW</code> tag.</li>
-          <li>${t.locked ? 'Decrypt with the password (AES-256-GCM).' : 'Check the CRC.'}</li></ol>
+        el.innerHTML = `<ol class="m4-ol"><li>Find the long run of invisible characters and turn each back into its bits.</li>
+          <li>Join the bits into bytes and check the tag (<code>${t.locked ? 'TL' : 'TS'}</code>).</li>
+          <li>${t.locked ? 'Decrypt with the password (AES-256-GCM).' : 'Check the length and the CRC.'}</li></ol>
           <div class="m4-secret">${esc(t.recovered)}</div>
           ${t.ok ? '<div class="m4-note ok">✓ Recovered exactly, by Member 2\'s real <code>reveal()</code>.</div>' : ''}`;
         checkBox(el);

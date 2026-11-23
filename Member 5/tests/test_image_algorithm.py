@@ -97,7 +97,7 @@ class RoundTripTests(ImageTestCase):
     def test_gallery_pictures_of_the_website(self):
         covers = common.gallery_covers()
         if not covers:
-            self.skipTest("Member 2's gallery pictures are not in the repository")
+            self.skipTest("Member 3's gallery pictures are not in the repository")
         for name, cover in covers.items():
             with self.subTest(picture=name):
                 self.assert_round_trip(cover, f"gallery picture {name}")

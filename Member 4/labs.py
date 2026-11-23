@@ -28,7 +28,7 @@ import numpy as np
 from PIL import Image, ImageEnhance
 
 import image_stego as img   # Member 1
-import text_stego as txt    # website text carrier
+import text_stega as txt    # website text carrier (Member 2)
 
 DISPLAY_MAX = 420
 SIZES_KB = {"small": 2, "medium": 12, "large": 40}
@@ -244,7 +244,7 @@ TEXT_ATTACKS = [
     ("nfkc", "Unicode normalised (NFKC, stricter)", lambda s: unicodedata.normalize("NFKC", s)),
     ("spaces", "Extra spaces cleaned up", lambda s: re.sub(r"[ \t]+", " ", s).strip()),
     ("emoji", "A reply with a family emoji 👨\u200d👩\u200d👧 added", lambda s: s + " 👨\u200d👩\u200d👧"),
-    ("strip", "Invisible characters removed (some apps do this)", lambda s: re.sub("[\u200b\u200c\u200d\u2060]", "", s)),
+    ("strip", "Invisible characters removed (some apps do this)", lambda s: re.sub("[\u200b\u200c\u200d\u2060\u2063]", "", s)),
     ("retype", "Retyped by hand (only visible letters)", lambda s: "".join(c for c in s if c.isprintable() and unicodedata.category(c) != "Cf")),
 ]
 

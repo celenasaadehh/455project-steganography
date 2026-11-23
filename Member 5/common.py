@@ -1,14 +1,13 @@
 """Shared helpers for the Member 5 tests and experiments.
 
-Importing this module makes Member 1's ``image_stego``, Member 2's
-``text_stego`` and the ``Text Steganography`` folder's ``text_stega``
-importable, so everything in this folder runs against the real code in the
-team repository and never against a copy.
+Importing this module makes Member 1's ``image_stego`` and Member 2's
+``text_stega`` importable, so everything in this folder runs against the real
+code in the team repository and never against a copy. The website (Member 3)
+uses ``text_stega`` as its text carrier, so ``text_stego`` is the same module.
 """
 from __future__ import annotations
 
 import csv
-import importlib.util
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -19,32 +18,20 @@ from PIL import Image
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 MEMBER1 = REPO / "Member 1"
-MEMBER2 = REPO / "Member 2"
+MEMBER3 = REPO / "Member 3"
 MEMBER4 = REPO / "Member 4"
-TEXT_FOLDER = REPO / "Text Steganography"
-GALLERY = MEMBER2 / "static" / "gallery"
+TEXT_FOLDER = REPO / "Member 2"
+GALLERY = MEMBER3 / "static" / "gallery"
 RESULTS = HERE / "results"
 
-for _folder in (MEMBER1, MEMBER2):
+for _folder in (MEMBER1, TEXT_FOLDER, MEMBER3):
     if str(_folder) not in sys.path:
         sys.path.insert(0, str(_folder))
 
 import image_stego  # noqa: E402  (Member 1)
-import text_stego  # noqa: E402  (Member 2, used by the website)
+import text_stega  # noqa: E402  (Member 2, the website's text carrier)
 
-
-def _load_text_stega():
-    """The second text algorithm, in the "Text Steganography" folder. None if the folder is missing."""
-    path = TEXT_FOLDER / "text_stega.py"
-    if not path.exists():
-        return None
-    spec = importlib.util.spec_from_file_location("text_stega", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-text_stega = _load_text_stega()
+text_stego = text_stega  # older name used in these tests for the website's text carrier
 
 
 def letter_paragraph(letters: int) -> str:
@@ -119,7 +106,7 @@ def synthetic_covers() -> dict[str, bytes]:
 
 
 def gallery_covers() -> dict[str, bytes]:
-    """The ten pictures of the website's built-in gallery (Member 2), if they are present."""
+    """The ten pictures of the website's built-in gallery (Member 3), if they are present."""
     return {path.stem.split("-", 1)[1]: path.read_bytes() for path in sorted(GALLERY.glob("[0-9][0-9]-*.png"))}
 
 

@@ -1,7 +1,7 @@
-"""Automated tests for the text-carrier algorithm (Member 2's text_stego.py).
+"""Automated tests for the website's text carrier (Member 2's text_stega.py).
 
 The website calls hide(cover, message, password) and reveal(text, password);
-strip_hidden() and capacity() are the two other public functions.
+strip_hidden() and capacity_info() are the two other public functions.
 
 Tests marked "expectedFailure" describe behaviour the algorithm should have but
 does not have yet. They are listed in the README under "Issues found". When a
@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import random
 import sys
+import textwrap
 import unicodedata
 import unittest
 from pathlib import Path
@@ -26,7 +27,7 @@ import common  # noqa: E402,F401
 from common import text_stego as stego  # noqa: E402
 
 COVER = "Hello there, see you at lunch tomorrow."
-HIDDEN = set(stego.ALPHABET)
+HIDDEN = set(stego.SYMBOLS)
 
 
 def hidden_characters(text: str) -> str:
@@ -68,11 +69,10 @@ class RoundTripTests(unittest.TestCase):
             with self.subTest(case=case, password=password):
                 self.assertEqual(stego.reveal(stego.hide(COVER, secret, password), password), secret)
 
-    def test_hiding_again_replaces_the_previous_message(self):
+    def test_hiding_again_is_refused(self):
         once = stego.hide(COVER, "first")
-        twice = stego.hide(once, "second")
-        self.assertEqual(stego.reveal(twice), "second")
-        self.assertEqual(visible_characters(twice), COVER)
+        with self.assertRaises(stego.TextStegoError):
+            stego.hide(once, "second")
 
 
 class InvisibilityTests(unittest.TestCase):
@@ -92,9 +92,9 @@ class InvisibilityTests(unittest.TestCase):
 
     def test_hidden_part_goes_after_the_first_word(self):
         text = stego.hide(COVER, "x")
-        self.assertTrue(text.startswith("Hello"))
-        self.assertIn(text[len("Hello")], HIDDEN)
-        self.assertTrue(text.endswith(COVER[len("Hello"):]))
+        self.assertTrue(text.startswith("Hello "))
+        self.assertIn(text[len("Hello ")], HIDDEN)
+        self.assertTrue(text.endswith(COVER[len("Hello "):]))
 
     def test_one_word_cover(self):
         text = stego.hide("Hello", "x")
@@ -103,12 +103,12 @@ class InvisibilityTests(unittest.TestCase):
         self.assertEqual(stego.reveal(text), "x")
 
     def test_size_of_the_hidden_part(self):
-        # 4 invisible characters per byte; 8 bytes of overhead without a password, 48 with one.
+        # 4 invisible characters per byte; 8 bytes of overhead without a password, 46 with one.
         for secret in ("a", "hello", "é", "x" * 100):
             size = len(secret.encode("utf-8"))
             with self.subTest(secret=secret[:10]):
                 self.assertEqual(len(hidden_characters(stego.hide(COVER, secret))), 4 * (size + 8))
-                self.assertEqual(len(hidden_characters(stego.hide(COVER, secret, "pw"))), 4 * (size + 48))
+                self.assertEqual(len(hidden_characters(stego.hide(COVER, secret, "pw"))), 4 * (size + 46))
 
     def test_without_password_the_result_is_always_the_same(self):
         self.assertEqual(stego.hide(COVER, "same"), stego.hide(COVER, "same"))
@@ -121,30 +121,28 @@ class InvisibilityTests(unittest.TestCase):
 
 class LimitTests(unittest.TestCase):
     def test_capacity_is_the_message_limit(self):
-        self.assertEqual(stego.capacity(), stego.MAX_MESSAGE_BYTES)
-        self.assertEqual(stego.capacity(), 10_000)
+        self.assertEqual(stego.capacity_info(COVER)["max_secret_bytes"], stego.MAX_SECRET_BYTES)
+        self.assertEqual(stego.MAX_SECRET_BYTES, 65535)
 
     def test_longest_message(self):
-        secret = "a" * stego.MAX_MESSAGE_BYTES
+        secret = "a" * stego.MAX_SECRET_BYTES
         self.assertEqual(stego.reveal(stego.hide(COVER, secret)), secret)
         with self.assertRaises(stego.TextStegoError):
             stego.hide(COVER, secret + "a")
 
     def test_limit_counts_bytes_not_characters(self):
         # "é" is one character but two bytes in UTF-8.
-        self.assertEqual(stego.reveal(stego.hide(COVER, "é" * 5000)), "é" * 5000)
+        self.assertEqual(stego.reveal(stego.hide(COVER, "é" * 32767)), "é" * 32767)
         with self.assertRaises(stego.TextStegoError):
-            stego.hide(COVER, "é" * 5001)
+            stego.hide(COVER, "é" * 32768)
 
     def test_capacity_does_not_depend_on_the_cover(self):
-        secret = "b" * stego.MAX_MESSAGE_BYTES
+        secret = "b" * stego.MAX_SECRET_BYTES
         self.assertEqual(stego.reveal(stego.hide("Hi", secret)), secret)
 
-    def test_longest_cover(self):
-        text = stego.hide("a" * stego.MAX_COVER_CHARS, "x")
+    def test_long_cover(self):
+        text = stego.hide("a" * 100_000, "x")
         self.assertEqual(stego.reveal(text), "x")
-        with self.assertRaises(stego.TextStegoError):
-            stego.hide("a" * (stego.MAX_COVER_CHARS + 1), "x")
 
     def test_missing_cover_or_message(self):
         for cover in ("", "   ", "\n\t", None):
@@ -179,9 +177,9 @@ class PasswordTests(unittest.TestCase):
         text = stego.hide(COVER, "unicode password", "كلمة السر 🔑")
         self.assertEqual(stego.reveal(text, "كلمة السر 🔑"), "unicode password")
 
-    def test_empty_password_means_no_password(self):
-        # Documented here because the image module refuses an empty password instead.
-        self.assertEqual(stego.hide(COVER, "secret", ""), stego.hide(COVER, "secret"))
+    def test_empty_password_is_refused_like_the_image_module(self):
+        with self.assertRaises(stego.TextPasswordError):
+            stego.hide(COVER, "secret", "")
 
     def test_password_error_is_a_text_stego_error(self):
         self.assertTrue(issubclass(stego.TextPasswordError, stego.TextStegoError))
@@ -202,7 +200,7 @@ class TamperingTests(unittest.TestCase):
 
     def test_every_single_character_substitution_is_detected(self):
         for position in self.positions:
-            for replacement in stego.ALPHABET:
+            for replacement in stego.SYMBOLS:
                 if replacement == self.text[position]:
                     continue
                 damaged = self.text[:position] + replacement + self.text[position + 1:]
@@ -230,8 +228,8 @@ class TamperingTests(unittest.TestCase):
         locked = stego.hide(COVER, "do not change me", "tamper")
         positions = [i for i, ch in enumerate(locked) if ch in HIDDEN]
         rng = random.Random(7)
-        for position in rng.sample(positions[16:], 10):  # after the 4-byte format header
-            replacement = next(ch for ch in stego.ALPHABET if ch != locked[position])
+        for position in rng.sample(positions[8:], 10):  # after the 2-byte "TL" tag
+            replacement = next(ch for ch in stego.SYMBOLS if ch != locked[position])
             damaged = locked[:position] + replacement + locked[position + 1:]
             with self.assertRaises(stego.TextPasswordError):
                 stego.reveal(damaged, "tamper")
@@ -251,6 +249,7 @@ class TamperingTests(unittest.TestCase):
             "stored as JSON": json.loads(json.dumps(self.text)),
             "stored as UTF-8": self.text.encode("utf-8").decode("utf-8"),
             "stored as UTF-16": self.text.encode("utf-16").decode("utf-16"),
+            "lines wrapped by an app": textwrap.fill(self.text, 30),
         }
         for name, edited in edits.items():
             with self.subTest(edit=name):
@@ -269,34 +268,27 @@ class TamperingTests(unittest.TestCase):
                     stego.reveal(filtered)
 
 
-class KnownIssues(unittest.TestCase):
-    """Behaviour that should hold but does not yet. See "Issues found" in the README."""
+class CoverJoinerTests(unittest.TestCase):
+    """The cover's own invisible joiners (emoji, Persian) and wrong input types."""
 
-    @staticmethod
-    def invisible_characters_kept(cover: str) -> int:
-        """How many of the cover's own invisible characters are still there after hide()."""
-        payload = 4 * (len("x") + 8)
-        return len(hidden_characters(stego.hide(cover, "x"))) - payload
-
-    @unittest.expectedFailure
     def test_emoji_made_of_joined_characters_survives_in_the_cover(self):
-        # The family emoji is three emoji joined by U+200D, which is also one of the
-        # four hidden characters, so hide() removes it and the emoji falls apart.
+        # The family emoji is three emoji joined by U+200D. hide() must keep it so the emoji stays whole.
         cover = "Family \U0001F468\u200d\U0001F469\u200d\U0001F467 photo attached"
-        self.assertEqual(self.invisible_characters_kept(cover), cover.count("\u200d"))
+        text = stego.hide(cover, "x")
+        self.assertEqual(stego.strip_hidden(text), cover)
+        self.assertEqual(stego.reveal(text), "x")
 
-    @unittest.expectedFailure
     def test_persian_cover_keeps_its_zero_width_non_joiner(self):
-        # Persian spelling uses U+200C inside words; hide() removes it.
+        # Persian spelling uses U+200C inside words; hide() must keep it.
         cover = "می\u200cخواهم بروم"
-        self.assertEqual(self.invisible_characters_kept(cover), cover.count("\u200c"))
+        text = stego.hide(cover, "x")
+        self.assertEqual(stego.strip_hidden(text), cover)
+        self.assertEqual(stego.reveal(text), "x")
 
-    @unittest.expectedFailure
     def test_reply_containing_a_joined_emoji_keeps_the_message_readable(self):
         text = stego.hide(COVER, "still here")
         self.assertEqual(stego.reveal(text + " \U0001F468\u200d\U0001F469\u200d\U0001F467"), "still here")
 
-    @unittest.expectedFailure
     def test_message_of_the_wrong_type_raises_a_text_stego_error(self):
         for bad in (42, b"bytes", ["a"]):
             with self.subTest(message=type(bad).__name__), self.assertRaises(stego.TextStegoError):

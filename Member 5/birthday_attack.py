@@ -133,18 +133,18 @@ def meaningful_collision(harmless: str, harmful: str, rng: random.Random, table_
 # but not any password.
 
 def _symbols_to_bytes(symbols: str) -> bytes:
-    values = [text_stego.ALPHABET.index(ch) for ch in symbols]
+    values = [text_stego.SYMBOLS.index(ch) for ch in symbols]
     return bytes((values[i] << 6) | (values[i + 1] << 4) | (values[i + 2] << 2) | values[i + 3]
                  for i in range(0, len(values), 4))
 
 
 def _bytes_to_symbols(data: bytes) -> str:
-    return "".join(text_stego.ALPHABET[(byte >> shift) & 3] for byte in data for shift in (6, 4, 2, 0))
+    return "".join(text_stego.SYMBOLS[(byte >> shift) & 3] for byte in data for shift in (6, 4, 2, 0))
 
 
 def swap_in_text(stego_text: str, old: str, new: str) -> str:
     """Replace the hidden message of an unprotected stego text and keep its checksum."""
-    hidden = "".join(ch for ch in stego_text if ch in text_stego.ALPHABET)
+    hidden = "".join(ch for ch in stego_text if ch in text_stego.SYMBOLS)
     payload = _symbols_to_bytes(hidden)              # format header | message | 4-byte CRC-32
     assert payload[4:-4] == old.encode("utf-8")
     forged = payload[:4] + new.encode("utf-8") + payload[-4:]
@@ -297,9 +297,9 @@ def part_3(say: Report, rng: random.Random) -> dict:
     say("")
     say("        With a password (AES-256-GCM, 128-bit tag that depends on the key):")
     locked_text = text_stego.hide(cover_text, harmless, "course password")
-    hidden = [i for i, ch in enumerate(locked_text) if ch in text_stego.ALPHABET]
-    position = hidden[4 * 32]                         # first character of the encrypted message
-    other = next(ch for ch in text_stego.ALPHABET if ch != locked_text[position])
+    hidden = [i for i, ch in enumerate(locked_text) if ch in text_stego.SYMBOLS]
+    position = hidden[4 * 30]                         # first character of the encrypted message (after TL, salt, nonce)
+    other = next(ch for ch in text_stego.SYMBOLS if ch != locked_text[position])
     try:
         text_stego.reveal(locked_text[:position] + other + locked_text[position + 1:], "course password")
         outcome["locked_text_change_rejected"] = False

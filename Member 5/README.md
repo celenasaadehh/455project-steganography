@@ -2,11 +2,10 @@
 
 This folder tests the team's steganography algorithms and the website, measures how well the algorithms work, and contains the birthday attack experiment.
 
-Three algorithms are covered:
+Two algorithms are covered, both used by the website (Member 3):
 
 - `Member 1/image_stego.py`: the image carrier (PNG, BMP, JPEG).
-- `Member 2/text_stego.py`: the text carrier that the website uses. It puts the hidden characters in one block after the first word.
-- `Text Steganography/text_stega.py`: a second text carrier, which spreads the hidden characters through the paragraph. The website does not use it yet.
+- `Member 2/text_stega.py`: the text carrier. It puts the hidden characters in one block after the first word: 2 bits per invisible character for English text, 1 bit per character when the cover has Arabic letters, with an optional password.
 
 The website tests also cover Member 4's History and Learn tabs.
 
@@ -17,12 +16,12 @@ Nothing here copies the code under test. Every script imports it directly from i
 | File | Purpose |
 |---|---|
 | `tests/test_image_algorithm.py` | 57 automated tests of the image carrier: round trips, passwords, capacity limits, distortion, bad input, tampering, JPEG |
-| `tests/test_text_algorithm.py` | 39 automated tests of the website's text carrier (`text_stego.py`): round trips, invisibility, limits, passwords, tampering, known issues |
-| `tests/test_text_steganography_folder.py` | 28 automated tests of the second text carrier (`text_stega.py`): round trips, spreading, exact capacity, bad input, tampering |
+| `tests/test_text_algorithm.py` | 39 automated tests of the text carrier through the names the website calls (`hide`, `reveal`): round trips, invisibility, limits, passwords, tampering, emoji and Persian covers |
+| `tests/test_text_steganography_folder.py` | 29 automated tests of the text carrier through its own names (`encode_text`, `decode_text`): round trips, one block after the first word, Arabic mode, bad input, tampering |
 | `tests/test_integration.py` | 18 tests of the algorithms together and through the website: register, send, reveal, History and Learn tabs |
 | `tests/test_birthday_attack.py` | 8 tests of the mathematics and the collision search used by the experiment |
 | `evaluate_images.py` | Measures image capacity, distortion (MSE, PSNR, SSIM), robustness and speed |
-| `evaluate_text.py` | Measures text overhead, robustness and whether the visible text is unchanged, and compares the two text carriers |
+| `evaluate_text.py` | Measures text overhead (English and Arabic, with and without a password), robustness and whether the visible text is unchanged |
 | `birthday_attack.py` | The birthday attack experiment |
 | `common.py`, `charts.py` | Shared helpers: test pictures, result tables, chart style |
 | `results/` | Tables (CSV, open in Excel) and charts (PNG) produced by the three scripts, ready for the report |
@@ -123,62 +122,43 @@ Hiding a 100-byte message in a 960 x 720 picture took about 82 ms without a pass
 
 Tables: `results/image_robustness.csv`, `results/image_timing.csv`.
 
-## Website text carrier (`text_stego.py`): capacity and overhead
+## Text carrier (`text_stega.py`): capacity and overhead
 
-- Capacity is fixed at 10,000 bytes of secret, whatever the cover text is. A one-word cover can carry it.
-- Every secret byte becomes 4 invisible characters. The fixed overhead is 32 invisible characters without a password and 192 with one.
-- The visible text does not change, but the stored text grows by 12 bytes for every secret byte, because each invisible character takes 3 bytes in UTF-8.
+- Capacity is fixed at 65,535 bytes of secret, whatever the cover text is. A one-word cover can carry it.
+- English text: every secret byte becomes 4 invisible characters. The fixed overhead is 32 invisible characters without a password and 184 with one.
+- Arabic text (any cover with Arabic letters, including Persian): only 2 invisible characters are used, 1 bit each, so every secret byte becomes 8 characters. The overhead doubles too: 64 without a password and 368 with one.
+- The visible text does not change, but the stored text grows by 12 bytes for every secret byte in English (24 in Arabic), because each invisible character takes 3 bytes in UTF-8.
 
-| Secret | Invisible characters | Stego text size | Compared with the 39-byte cover |
-|---|---:|---:|---:|
-| 10 bytes | 72 | 255 bytes | 6.5 times larger |
-| 100 bytes | 432 | 1,335 bytes | 34 times larger |
-| 1,000 bytes | 4,032 | 12,135 bytes | 311 times larger |
-| 10,000 bytes | 40,032 | 120,135 bytes | 3,080 times larger |
+| Secret | English: invisible characters | English: size vs the 39-byte cover | Arabic: invisible characters | Arabic: size vs the 50-byte cover |
+|---|---:|---:|---:|---:|
+| 10 bytes | 72 | 6.5 times larger | 144 | 9.6 times larger |
+| 100 bytes | 432 | 34 times larger | 864 | 53 times larger |
+| 1,000 bytes | 4,032 | 311 times larger | 8,064 | 485 times larger |
+| 10,000 bytes | 40,032 | 3,080 times larger | 80,064 | 4,805 times larger |
 
-So the hidden message cannot be seen, but a long secret in a short sentence is easy to notice from the size of the text. Hiding and revealing take under 3 ms without a password and about 37 ms with one.
+So the hidden message cannot be seen, but a long secret in a short sentence is easy to notice from the size of the text. Without a password, hiding and revealing 10,000 bytes took under 20 ms in English and under 40 ms in Arabic. With a password every operation took about 110 to 145 ms, almost all of it the scrypt key derivation, which is slow on purpose.
 
-Table: `results/text_overhead.csv`.
+Chart: `results/text_overhead.png`. Table: `results/text_overhead.csv`.
 
-## Website text carrier (`text_stego.py`): robustness
+## Text carrier (`text_stega.py`): robustness and visibility
+
+The same edits were made to a stego text with an English cover and one with an Arabic cover. Both behaved the same.
 
 | Edit of the stego text | Result |
 |---|---|
-| Text added before or after, upper case, trimming, collapsing spaces, wrapping lines, Unicode normalisation (NFC, NFKC), JSON, UTF-16 | Message recovered |
-| One invisible character deleted, only part of the text copied, two stego texts pasted together | Rejected with an error |
+| Text added before or after, upper case, trimming, collapsing spaces, wrapping lines at 40 columns, Unicode normalisation (NFC, NFKC), JSON, UTF-16 | Message recovered |
+| A reply that contains an emoji built from joined characters | Message recovered |
+| Text cut after the hidden block | Message recovered (the block sits after the first word) |
+| One invisible character deleted, text cut inside the hidden block, two stego texts pasted together | Rejected with an error |
 | Sent through a system that keeps only ASCII or only printable characters | Rejected with an error (the message is gone) |
-| A reply that contains an emoji built from joined characters | Rejected with an error (see issue 2) |
+
+The visible text stayed exactly as typed for every cover tested, with and without a password: an English sentence, one word, French with accents, Japanese, Arabic, a family emoji joined with U+200D and a Persian word written with U+200C. Arabic and Persian covers switch to the Arabic mode automatically. This works because only a long run of invisible characters counts as the hidden message, so the single joiners that emoji and Persian words need are left alone. Spaces and line breaks inside the run are allowed, which is why wrapped lines still work.
 
 Tables: `results/text_robustness.csv`, `results/text_visibility.csv`.
 
-## Comparing the two text carriers
-
-Both text carriers hide 2 bits in each invisible character and add 8 bytes of overhead (tag, length, CRC-32). They differ in where the characters go, how much fits, and what they protect against. Same paragraph and same secret for both.
-
-| | `text_stego.py` (website) | `text_stega.py` (Text Steganography folder) |
-|---|---|---|
-| Where the hidden characters go | One block after the first word | Spread after English letters across the whole paragraph |
-| Capacity | 10,000 bytes, whatever the cover is | English letters / 4 - 8 bytes |
-| One short sentence (31 letters) | 10,000 bytes | 0 bytes |
-| Short paragraph, about 50 words | 10,000 bytes | 54 bytes |
-| One page, about 500 words | 10,000 bytes | 617 bytes |
-| Arabic paragraph | Works | Refused: Arabic letters do not count |
-| Paragraph with a joined emoji | Message works, but the emoji falls apart | Works, text unchanged |
-| Persian text (uses U+200C) | Message works, but the word changes | Refused with a clear error |
-| A reply containing a joined emoji | Message lost | Message recovered |
-| Only the first half of the text copied | Message recovered (the block is near the start) | Rejected |
-| Password and encryption | Optional AES-256-GCM | None: CRC-32 only |
-| Used by the website | Yes | Not yet |
-
-- The capacity formula of `text_stega.py` was checked exactly, including the two examples in `Text Steganography/Research.md` (115 letters hold 20 bytes, 240 letters hold 52 bytes).
-- The spread method is the better design for keeping the visible text intact and for surviving replies. The website method holds far more and is the only one with a password.
-- Both reject every single-character substitution or deletion, two stego texts pasted together, and text that passed through an ASCII-only system.
-
-Chart: `results/text_capacity_by_paragraph.png`. Tables: `results/text_compare_capacity.csv`, `results/text_compare_robustness.csv`, `results/text_compare_covers.csv`.
-
 ## Birthday attack experiment
 
-A check value of n bits has 2^n possible values, but two different messages with the same check value appear after about 2^(n/2) messages. This matters for the project because, without a password, the image carrier and the website's text carrier protect the hidden message with a CRC-32 checksum, which has only 32 bits, and `text_stega.py` always uses CRC-32 because it has no password option. With a password the first two use AES-256-GCM, whose tag has 128 bits and depends on the key.
+A check value of n bits has 2^n possible values, but two different messages with the same check value appear after about 2^(n/2) messages. This matters for the project because, without a password, both the image carrier and the text carrier protect the hidden message with a CRC-32 checksum, which has only 32 bits. With a password both use AES-256-GCM, whose tag has 128 bits and depends on the key.
 
 **Part 1, measured against theory.** Random messages were drawn until two had the same check value (SHA-256 cut to n bits, 300 runs per size).
 
@@ -202,27 +182,22 @@ A check value of n bits has 2^n possible values, but two different messages with
 | 128 bits (AES-GCM tag, with password) | 2.17 x 10^19 | 688 years |
 | 256 bits (SHA-256) | 4.01 x 10^38 | 1.3 x 10^22 years |
 
-**Conclusion.** The CRC-32 checksum detects accidental damage very well: every single-character or single-value change was caught in the tests. It does not protect against a deliberate change, and it cannot prove which message was hidden. `Text Steganography/Research.md` says the same in its security section; this experiment measures it. A message that matters should always be hidden with a password, which today means the website's text carrier or the image carrier.
+**Conclusion.** The CRC-32 checksum detects accidental damage very well: every single-character or single-value change was caught in the tests. It does not protect against a deliberate change, and it cannot prove which message was hidden. `Member 2/Research.md` says the same in its security section; this experiment measures it. A message that matters should always be hidden with a password, which both carriers offer. The website now shows a warning when the lock is switched off.
 
 Charts: `results/birthday_tries_vs_bits.png`, `results/birthday_crc32_probability.png`. Full output: `results/birthday_attack_log.txt`.
 
 ## Issues found
 
-Website text carrier (`Member 2/text_stego.py`):
+Text carrier (`Member 2/text_stega.py`, used by the website): no open defect. The issues from the first report are fixed. At that time the website used its own text module, `text_stego.py`, which has since been merged into `text_stega.py` and removed.
 
-1. **The cover text can change when it already contains invisible characters.** `hide()` removes every U+200B, U+200C, U+200D and U+2060 from the cover before adding the payload. Emoji built from joined characters use U+200D and Persian spelling uses U+200C, so a family emoji falls apart into three separate emoji and a Persian word changes. The secret is still recovered, but the visible text is no longer what the sender typed.
-2. **A reply that contains a joined emoji makes the message unreadable.** `reveal()` collects the four invisible characters from the whole text, so two extra ones from an emoji anywhere in the text break the decoding. Reading only the continuous run of invisible characters that `hide()` inserted would fix issues 1 and 2 together.
-3. **A message that is not a string raises `AttributeError`** instead of `TextStegoError`. The website always passes strings, so users are not affected today.
-4. **An empty password means "no password" in the text module but is an error in the image module.** The website turns an empty password into "no password" before calling either, so users are not affected today.
-
-Issues 1 to 3 have a test marked `expectedFailure` in `tests/test_text_algorithm.py`. When one is fixed, the test run reports an "unexpected success" and the mark can be removed.
-
-Second text carrier (`Text Steganography/text_stega.py`): no defect was found. Every result matched its own description, and every tampered text was rejected. Points for the team to decide:
-
-5. **Short or non-English covers hold nothing.** Only the letters A to Z and a to z count, so a sentence under 36 letters, or any Arabic text, cannot carry a message.
-6. **There is no password option**, so a hidden message is readable by anyone who knows the method and is only protected by CRC-32 (see the birthday experiment).
-7. **It is not connected to the website yet**, although `Research.md` describes that as the plan.
-8. **The menu in `main()` saves `stego_output.txt` inside the folder.** That file is not in `.gitignore`, so it could be committed by mistake.
+1. **The cover text changed when it already contained invisible characters** (joined emoji, Persian words). Fixed: only a long run counts as the hidden message, so the cover's own joiners stay.
+2. **A reply containing a joined emoji made the message unreadable.** Fixed by the same change.
+3. **A message that was not a string raised `AttributeError`.** Fixed: every error is a `TextStegoError`, which is a `ValueError`.
+4. **An empty password meant "no password" in the text module but was an error in the image module.** Fixed: both refuse an empty password; `None` means no lock.
+5. **Short or non-English covers held nothing.** Fixed: any nonempty cover holds up to 65,535 bytes, and Arabic covers use their own 1-bit mode.
+6. **There was no password option.** Fixed: optional AES-256-GCM with the same scrypt settings as the image carrier.
+7. **It was not connected to the website.** Fixed: the website calls `hide()` and `reveal()` from this module. Messages hidden by the old module (tag `ZW`) can still be read.
+8. **The menu's `stego_output.txt` was not in `.gitignore`.** Fixed in `Member 2/.gitignore`.
 
 Image carrier (`Member 1/image_stego.py`): no defect was found in PNG and BMP output. JPEG output could not be tested here because the helper program was not built.
 
@@ -230,7 +205,7 @@ Website and Member 4's tabs: no defect was found. A hidden message, locked or no
 
 For the website and the report:
 
-- Without a password a hidden message is not protected against deliberate replacement (birthday experiment). The interface could say so next to the lock option.
+- Without a password a hidden message is not protected against deliberate replacement (birthday experiment). The interface now says so when the lock is switched off.
 - A stego picture must be shared as a file. Saving it as JPEG, resizing it or sending it through an app that recompresses pictures destroys the message.
 - A long secret in a short cover sentence makes the text hundreds of times larger than it looks.
-- If the website moves to `text_stega.py`, it should keep the password option and warn users that a cover needs about 4 English letters for every byte of secret.
+- A secret hidden in Arabic or Persian text takes twice as many invisible characters as the same secret in English text.

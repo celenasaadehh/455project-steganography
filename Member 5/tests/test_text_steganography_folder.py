@@ -1,10 +1,9 @@
-"""Automated tests for the second text algorithm, in the "Text Steganography" folder (text_stega.py).
+"""Automated tests for Member 2's text algorithm (text_stega.py), the website's text carrier.
 
-Its public functions are encode_text(carrier, secret), decode_text(stego),
-capacity_info(carrier) and remove_hidden_symbols(stego). All errors are ValueError.
-
-The website does not use this module yet (it uses Member 2's text_stego.py), so
-these tests call it directly.
+Its public functions are encode_text(carrier, secret, password=None),
+decode_text(stego, password=None), capacity_info(carrier) and
+remove_hidden_symbols(stego). All errors are ValueError. The website calls the
+same functions as hide() / reveal(); test_text_algorithm.py tests those names.
 
 Run from the "Member 5" folder:
     python -m unittest discover -s tests -v
@@ -25,7 +24,7 @@ from common import letter_paragraph  # noqa: E402
 
 stego = common.text_stega
 if stego is None:
-    raise unittest.SkipTest('The "Text Steganography" folder is not in the repository')
+    raise unittest.SkipTest('The "Member 2" folder is not in the repository')
 
 HIDDEN = set(stego.SYMBOLS)
 CARRIER = ("Dear team, the weekly meeting is moved to Thursday afternoon in the main hall. " * 6).strip()
@@ -76,15 +75,11 @@ class InvisibilityTests(unittest.TestCase):
         for ch in stego.SYMBOLS:
             self.assertEqual(unicodedata.category(ch), "Cf")
 
-    def test_hidden_characters_are_spread_through_the_paragraph(self):
+    def test_hidden_characters_form_one_block_after_the_first_word(self):
         text = stego.encode_text(CARRIER, "abc")
         positions = [i for i, ch in enumerate(text) if ch in HIDDEN]
-        # Each hidden character sits right after an English letter ...
-        self.assertTrue(all(("A" <= text[i - 1] <= "Z") or ("a" <= text[i - 1] <= "z") for i in positions))
-        # ... and they cover most of the paragraph instead of forming one block.
-        self.assertLess(positions[0], len(text) * 0.1)
-        self.assertGreater(positions[-1], len(text) * 0.9)
-        self.assertEqual(len(set(positions)), len(positions))
+        self.assertEqual(positions[0], CARRIER.index(" ") + 1)
+        self.assertEqual(positions, list(range(positions[0], positions[0] + len(positions))))
 
     def test_size_of_the_hidden_part(self):
         # 4 invisible characters per byte, 8 bytes of overhead (2 tag, 2 length, 4 CRC-32).
@@ -106,20 +101,14 @@ class InvisibilityTests(unittest.TestCase):
 
 
 class CapacityTests(unittest.TestCase):
-    def test_capacity_formula(self):
-        # max_secret_bytes = floor(English letters / 4) - 8, never below 0.
-        for letters in (0, 1, 31, 32, 35, 36, 39, 40, 115, 240, 1000):
-            with self.subTest(letters=letters):
-                info = stego.capacity_info(letter_paragraph(letters))
-                self.assertEqual(info["carrier_letters"], letters)
-                self.assertEqual(info["raw_capacity_bits"], 2 * letters)
+    def test_capacity_does_not_depend_on_the_carrier_length(self):
+        # The hidden block sits after the first word, so any nonempty carrier holds the maximum.
+        for carrier in ("Hi", "See you at five.", letter_paragraph(240)):
+            with self.subTest(carrier=carrier[:20]):
+                info = stego.capacity_info(carrier)
+                self.assertEqual(info["max_secret_bytes"], 65535)
                 self.assertEqual(info["overhead_bits"], 64)
-                self.assertEqual(info["max_secret_bytes"], max(0, letters // 4 - 8))
-
-    def test_numbers_quoted_in_the_research_document(self):
-        # Research.md, section 8: 115 letters hold 20 bytes, 240 letters hold 52 bytes.
-        self.assertEqual(stego.capacity_info(letter_paragraph(115))["max_secret_bytes"], 20)
-        self.assertEqual(stego.capacity_info(letter_paragraph(240))["max_secret_bytes"], 52)
+                self.assertEqual(info["symbols_per_byte"], 4)
 
     def test_reported_capacity_is_exact(self):
         for letters in (40, 41, 48, 115, 240, 999):
@@ -131,24 +120,22 @@ class CapacityTests(unittest.TestCase):
                     stego.encode_text(carrier, "z" * (limit + 1))
 
     def test_capacity_counts_bytes_not_characters(self):
-        carrier = letter_paragraph(4 * (8 + 10))  # room for exactly 10 bytes
-        self.assertEqual(stego.decode_text(stego.encode_text(carrier, "é" * 5)), "é" * 5)
-        with self.assertRaises(ValueError):
-            stego.encode_text(carrier, "é" * 6)
+        self.assertEqual(stego.decode_text(stego.encode_text("Hi there", "é" * 5)), "é" * 5)
+        size = len(hidden_characters(stego.encode_text("Hi there", "é" * 5)))
+        self.assertEqual(size, 4 * (8 + 10))  # 5 letters "é" are 10 UTF-8 bytes
 
-    def test_short_sentences_hold_nothing(self):
-        # Fewer than 36 letters leave no room after the 8 bytes of overhead.
-        for sentence in ("See you at five.", "Hello there, see you at lunch."):
+    def test_short_sentences_hold_a_message(self):
+        for sentence in ("See you at five.", "Hello there, see you at lunch.", "Hi"):
             with self.subTest(sentence=sentence):
-                self.assertEqual(stego.capacity_info(sentence)["max_secret_bytes"], 0)
-                with self.assertRaises(ValueError):
-                    stego.encode_text(sentence, "x")
+                self.assertEqual(stego.decode_text(stego.encode_text(sentence, "x")), "x")
 
-    def test_only_english_letters_count(self):
-        arabic = "مرحبا بكم جميعا في الاجتماع الأسبوعي يوم الخميس بعد الظهر في القاعة الرئيسية " * 3
-        self.assertEqual(stego.capacity_info(arabic)["carrier_letters"], 0)
-        self.assertEqual(stego.capacity_info("éèàùç ñ ü " * 20)["carrier_letters"], 0)
-        self.assertEqual(stego.capacity_info("1234567890 !?.,;: " * 20)["max_secret_bytes"], 0)
+    def test_arabic_carrier_uses_one_bit_per_character(self):
+        arabic = "مرحبا بكم جميعا في الاجتماع الأسبوعي"
+        self.assertEqual(stego.capacity_info(arabic)["symbols_per_byte"], 8)
+        text = stego.encode_text(arabic, "hello")
+        self.assertEqual(len(hidden_characters(text)), 8 * (5 + 8))
+        self.assertTrue(set(hidden_characters(text)) <= set(stego.ARABIC_BIT_SYMBOLS))
+        self.assertEqual(stego.decode_text(text), "hello")
 
     def test_longest_message(self):
         carrier = "a" * (4 * (stego.MAX_SECRET_BYTES + 8)) + "."
@@ -167,17 +154,24 @@ class InvalidInputTests(unittest.TestCase):
             with self.subTest(secret=secret), self.assertRaises(ValueError):
                 stego.encode_text(CARRIER, secret)
 
-    def test_carrier_that_already_contains_hidden_characters_is_refused(self):
-        for symbol in stego.SYMBOLS:
-            with self.subTest(symbol=hex(ord(symbol))), self.assertRaises(ValueError):
-                stego.encode_text(CARRIER + symbol, "x")
+    def test_carrier_that_already_contains_a_hidden_message_is_refused(self):
         with self.assertRaises(ValueError):
             stego.encode_text(stego.encode_text(CARRIER, "first"), "second")
 
-    def test_persian_text_is_refused_with_a_clear_error(self):
-        # Persian spelling uses U+200C, which is one of the four reserved characters.
-        with self.assertRaisesRegex(ValueError, "reserved invisible characters"):
-            stego.encode_text("می‌خواهم " + letter_paragraph(80), "x")
+    def test_single_invisible_characters_in_the_carrier_are_kept(self):
+        # Only a long run is a hidden message; one invisible character belongs to the carrier.
+        for symbol in stego.SYMBOLS:
+            with self.subTest(symbol=hex(ord(symbol))):
+                text = stego.encode_text(CARRIER + symbol, "x")
+                self.assertEqual(stego.remove_hidden_symbols(text), CARRIER + symbol)
+                self.assertEqual(stego.decode_text(text), "x")
+
+    def test_persian_text_works(self):
+        # Persian spelling uses U+200C inside words; it must stay and not break the message.
+        cover = "می\u200cخواهم بروم"
+        text = stego.encode_text(cover, "x")
+        self.assertEqual(stego.remove_hidden_symbols(text), cover)
+        self.assertEqual(stego.decode_text(text), "x")
 
     def test_decoding_text_without_a_message(self):
         for text in (CARRIER, "", None, 42):
@@ -205,10 +199,15 @@ class TamperingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 stego.decode_text(self.text[:position] + self.text[position + 1:])
 
-    def test_cut_off_text_is_rejected(self):
-        for keep in (10, len(self.text) // 2, len(self.text) - 20):
+    def test_cut_inside_the_hidden_block_is_rejected(self):
+        for keep in (10, self.positions[0] + 9, self.positions[-1] - 3):
             with self.subTest(keep=keep), self.assertRaises(ValueError):
                 stego.decode_text(self.text[:keep])
+
+    def test_cut_after_the_hidden_block_keeps_the_message(self):
+        for keep in (self.positions[-1] + 1, len(self.text) // 2):
+            with self.subTest(keep=keep):
+                self.assertEqual(stego.decode_text(self.text[:keep]), "do not change me")
 
     def test_two_stego_texts_pasted_together_are_rejected(self):
         other = stego.encode_text(letter_paragraph(200), "second")

@@ -75,7 +75,7 @@
   <main class="main">
     <header class="bar">
       <button class="icon-btn menu" data-menu aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-      <h1 data-title>Inbox</h1>
+      <h1 class="title"><span class="title-ic" data-title-icon></span><span data-title>Inbox</span></h1>
       <form class="search-wrap" data-search-wrap hidden>
         <button type="submit" class="search-btn" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
         <input class="search" type="search" placeholder="Search" data-search>
@@ -85,6 +85,14 @@
     <!-- Inbox / Sent -->
     <section class="view mail" data-view="mail">
       <div class="list" data-list>
+        <div class="chips" data-filters role="tablist">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="unread"><i class="dot"></i>Unread<b data-count="unread"></b></button>
+          <button class="chip" data-filter="pinned"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>Pinned<b data-count="pinned"></b></button>
+          <button class="chip" data-filter="locked"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Locked</button>
+          <button class="chip" data-filter="image"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Image</button>
+          <button class="chip" data-filter="text"><svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>Text</button>
+        </div>
         <div class="empty" data-empty hidden>
           <svg viewBox="0 0 24 24"><path d="M3 12l3-7h12l3 7v7H3z"/><path d="M3 12h5l2 3h4l2-3h5"/></svg>
           <p data-empty-text>Nothing here yet</p>
@@ -104,6 +112,7 @@
         <h2 data-empty-hello>Hello</h2>
         <button class="btn primary" data-compose-open><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New message</button>
         <p class="tip-line"><span data-tip></span></p>
+        <p class="keys"><kbd>C</kbd> new <kbd>/</kbd> search <kbd>J</kbd><kbd>K</kbd> move <kbd>P</kbd> pin <kbd>R</kbd> reply</p>
       </div>
       <article class="detail" data-detail hidden>
         <header class="detail-head">
@@ -111,13 +120,28 @@
           <span class="avatar" data-d-avatar></span>
           <div class="who"><strong data-d-name></strong><small data-d-sub></small></div><!-- sub: "Received"/"Sent", never the e-mail -->
           <time data-d-time></time>
-          <button class="icon-btn" data-delete title="Delete"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
         </header>
+        <div class="tools" data-tools>
+          <button class="tool" data-reply title="Reply (r)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 015 5v6"/></svg><span>Reply</span></button>
+          <button class="tool" data-pin title="Pin (p)"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><span data-pin-label>Pin</span></button>
+          <button class="tool" data-mark-unread title="Mark unread (u)"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span>Unread</span></button>
+          <span class="tools-gap"></span>
+          <button class="tool danger" data-delete title="Delete (Del)"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+        </div>
         <h2 class="subject" data-d-subject></h2>
 
-        <div class="carrier-box">
-          <img data-d-img alt="" hidden>
+        <div class="carrier-box" data-carrier-box>
+          <div class="stage" data-stage hidden>
+            <img data-d-img alt="">
+            <canvas class="lens" data-lens hidden></canvas>
+            <span class="scan" data-scan></span>
+          </div>
           <pre data-d-text hidden></pre>
+          <div class="carrier-tools">
+            <button class="pill" data-xray hidden title="See the hidden-bit layer"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>X-ray</button>
+            <button class="pill" data-show-hidden hidden title="Show the invisible characters"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Show hidden</button>
+            <small class="carrier-note" data-carrier-note></small>
+          </div>
         </div>
 
         <div class="reveal" data-reveal>
@@ -177,7 +201,8 @@
         <div data-subpanel="profile">
           <div class="card">
             <div class="avatar-edit">
-              <label class="avatar xl" data-avatar title="Change picture"><input type="file" accept="image/*" data-avatar-input hidden></label>
+              <button type="button" class="avatar xl" data-avatar data-avatar-open title="Change picture"></button>
+              <input type="file" accept="image/*" data-avatar-input hidden>
               <div>
                 <button class="btn secondary" data-avatar-pick>Change picture</button>
                 <button class="btn ghost" data-avatar-remove>Remove</button>
@@ -324,12 +349,12 @@
             <h3>How it hides</h3>
             <p><b>PNG / BMP</b> · colour values change by ±1 in busy areas only; matrix embedding alters at most 1 value in 7.</p>
             <p><b>JPEG</b> · quantization index modulation on the compressed DCT coefficients, with error correction.</p>
-            <p><b>Text</b> · zero-width Unicode characters, 2 bits each, hidden between normal words.</p>
+            <p><b>Text</b> · zero-width Unicode characters after the first word: 2 bits each, or 1 bit each in Arabic text.</p>
             <p><b>Lock</b> · AES-256-GCM; the key comes from your password through scrypt.</p>
           </div>
           <div class="card about">
             <h3>Stego Mail</h3>
-            <p>Project 17 · Steganography (message and image). Member 1: image engine. Member 2: website and text carrier.</p>
+            <p>Project 17 · Steganography (message and image). Member 1: image engine. Member 2: text carrier. Member 3: website. Member 4: Learn and History. Member 5: testing.</p>
           </div>
         </div>
 
@@ -392,6 +417,7 @@
       <label class="switch"><input type="checkbox" name="lock" checked><span class="track"></span><span>Lock</span></label>
       <input name="password" type="password" placeholder="Password" autocomplete="new-password">
     </div>
+    <p class="lock-warn" data-lock-warn hidden>Without a lock, anyone can read or swap the hidden message.</p>
 
     <div class="status"></div>
     <footer class="sheet-foot">
@@ -401,17 +427,46 @@
   </form>
 </div>
 
+<!-- ============================ AVATAR CROP ============================ -->
+<div id="cropper" class="modal" hidden>
+  <div class="sheet crop-sheet">
+    <header class="sheet-head">
+      <h2>Adjust picture</h2>
+      <button type="button" class="icon-btn" data-crop-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </header>
+    <div class="crop-stage" data-crop-stage>
+      <img data-crop-img alt="" draggable="false">
+      <span class="crop-ring"></span>
+    </div>
+    <div class="crop-zoom">
+      <button type="button" class="icon-btn" data-crop-step="-0.25" aria-label="Zoom out"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg></button>
+      <input type="range" min="1" max="5" step="0.01" value="1" data-crop-zoom aria-label="Zoom">
+      <button type="button" class="icon-btn" data-crop-step="0.25" aria-label="Zoom in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg></button>
+    </div>
+    <footer class="sheet-foot">
+      <button type="button" class="btn ghost" data-crop-close>Cancel</button>
+      <button type="button" class="btn primary" data-crop-save>Save</button>
+    </footer>
+  </div>
+</div>
+
 <div class="toast" data-toast hidden></div>
 
 <template id="tpl-row">
-  <button class="row">
+  <div class="row" role="button" tabindex="0">
+    <i class="row-dot"></i>
     <span class="avatar"></span>
     <span class="row-main">
-      <span class="row-top"><strong class="row-name"></strong><time class="row-time"></time></span>
+      <span class="row-top"><strong class="row-name"></strong><svg class="row-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><time class="row-time"></time></span>
       <span class="row-sub"><span class="row-kind"></span><span class="row-subject"></span></span>
     </span>
     <img class="row-thumb" alt="" hidden>
-  </button>
+    <span class="row-acts">
+      <button type="button" data-act="pin" title="Pin"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></button>
+      <button type="button" data-act="read" title="Read / unread"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button>
+      <button type="button" data-act="delete" title="Delete"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+    </span>
+  </div>
 </template>
 
 <template id="tpl-gallery">

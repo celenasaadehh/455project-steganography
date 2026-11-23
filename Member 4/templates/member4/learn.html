@@ -1,4 +1,4 @@
-{# Member 4: Learn content, included inside the Tutorial view of Member 2's index.html #}
+{# Member 4: Learn content, included inside the Tutorial view of Member 3's index.html #}
 <div class="m4" data-m4-learn>
 
   <nav class="m4-toc" aria-label="On this page">
@@ -74,16 +74,17 @@
     <div class="m4-symbols">
       <div><span class="m4-zw z0">00</span> U+200B Zero Width Space</div>
       <div><span class="m4-zw z1">01</span> U+200C Zero Width Non-Joiner</div>
-      <div><span class="m4-zw z2">10</span> U+200D Zero Width Joiner</div>
-      <div><span class="m4-zw z3">11</span> U+2060 Word Joiner</div>
+      <div><span class="m4-zw z2">10</span> U+2060 Word Joiner</div>
+      <div><span class="m4-zw z3">11</span> U+2063 Invisible Separator</div>
     </div>
+    <p>If the cover has <strong>Arabic</strong> letters, only U+200B and U+2060 are used, 1 bit each, so the hidden run never sits between joined letters.</p>
     <ol class="m4-ol">
-      <li>The secret becomes bytes. Each byte (8 bits) becomes <strong>4 invisible characters</strong>.</li>
-      <li>In front goes a tiny header: <code>ZW</code> (our tag), a version number and a "locked?" flag. An unlocked message ends with a CRC check; a locked one carries the salt, nonce and an authentication tag instead.</li>
+      <li>The secret becomes bytes. Each byte (8 bits) becomes <strong>4 invisible characters</strong> (8 in Arabic text).</li>
+      <li>In front goes a tiny header: the tag <code>TS</code> and the message length, and an unlocked message ends with a CRC check. A locked message uses the tag <code>TL</code> and carries the salt, nonce and an authentication tag instead.</li>
       <li>The invisible run is slipped in <strong>right after the first word</strong> of your cover sentence.</li>
     </ol>
     <p>The sentence looks <strong>exactly</strong> the same on screen and survives copy and paste in many apps.</p>
-    <div class="m4-note warn">The text gets longer: a 10-letter secret adds 72 invisible characters (232 with a password). A character counter or Unicode scanner would notice, and some apps (or retyping the text) remove them. The visible words never change.</div>
+    <div class="m4-note warn">The text gets longer: a 10-letter secret adds 72 invisible characters (224 with a password, twice as many in Arabic text). A character counter or Unicode scanner would notice, and some apps (or retyping the text) remove them. The visible words never change.</div>
   </section>
 
   <!-- ===================== 4. LOCK ===================== -->

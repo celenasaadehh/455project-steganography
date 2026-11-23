@@ -12,13 +12,13 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-for sub in ("Member 1", "Member 2", "Member 4"):
+for sub in ("Member 1", "Member 2", "Member 3", "Member 4"):
     sys.path.insert(0, str(ROOT / sub))
 
 import labs  # noqa: E402
 import learn_trace as L  # noqa: E402
 
-GALLERY = ROOT / "Member 2" / "static" / "gallery" / "02-sunset.png"
+GALLERY = ROOT / "Member 3" / "static" / "gallery" / "02-sunset.png"
 
 
 def noisy_png(w=200, h=150, seed=1):
@@ -72,10 +72,10 @@ class TextTrace(unittest.TestCase):
         t = L.trace_text("See you tomorrow!", "gate B")
         self.assertTrue(t["ok"])
         self.assertEqual(t["stats"]["hidden_chars"], (4 + len("gate B") + 4) * 4)  # header + message + CRC, 4 chars per byte
-        self.assertEqual(t["payload_rows"][0]["field"], "Tag 'ZW'")
+        self.assertEqual(t["payload_rows"][0]["field"], "Tag 'TS'")
 
     def test_visible_text_unchanged(self):
-        import text_stego as txt
+        import text_stega as txt
         t = L.trace_text("Hello there friend", "yo")
         self.assertEqual(txt.strip_hidden(t["stego"]), "Hello there friend")
 
@@ -88,7 +88,7 @@ class TextTrace(unittest.TestCase):
 
 
 class Labs(unittest.TestCase):
-    FOREST = ROOT / "Member 2" / "static" / "gallery" / "03-forest.png"
+    FOREST = ROOT / "Member 3" / "static" / "gallery" / "03-forest.png"
 
     def test_chi_square_distribution(self):
         # textbook values: P(X > 3.84 | 1 dof) = 0.05, P(X > 18.31 | 10 dof) = 0.05
@@ -118,7 +118,7 @@ class Labs(unittest.TestCase):
 class HistoryApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import app as main  # Member 2's Flask app (creates Member 2/data if needed)
+        import app as main  # Member 3's Flask app (creates Member 3/data if needed)
         if "member4" not in main.app.blueprints:
             raise unittest.SkipTest("Member 4 is not connected to app.py yet (see README)")
         cls.app = main.app

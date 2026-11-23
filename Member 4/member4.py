@@ -1,6 +1,6 @@
 """Member 4: Educational & convenience features for Stego Mail.
 
-Plugs into Member 2's Flask app with two lines in app.py:
+Plugs into Member 3's Flask app with two lines in app.py:
 
     import member4
     member4.init_app(app)
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, g, jsonify, request, session
 
-import db                 # Member 2's SQLite helpers (same database file)
+import db                 # Member 3's SQLite helpers (same database file)
 import labs
 import learn_trace
 
@@ -73,13 +73,13 @@ def _need_login():
 
 # ------------------------------------------------------------------ Learn
 def _main_app_module():
-    """Member 2's app.py module (named '__main__' when started with `python app.py`)."""
+    """Member 3's app.py module (named '__main__' when started with `python app.py`)."""
     import sys
     for name in ("app", "__main__"):
         mod = sys.modules.get(name)
         if mod is not None and hasattr(mod, "_cover_bytes"):
             return mod
-    raise RuntimeError("Member 2's app.py is not loaded")
+    raise RuntimeError("Member 3's app.py is not loaded")
 
 
 def _cover_for_learn() -> bytes | None:
@@ -108,7 +108,7 @@ def learn_image():
 
 @bp.post("/api/learn/text")
 def learn_text():
-    import text_stego as txt
+    import text_stega as txt
     try:
         trace = learn_trace.trace_text(request.form.get("cover", ""), request.form.get("message", ""),
                                        request.form.get("password") or None)
@@ -146,7 +146,7 @@ def learn_robust_image():
 
 @bp.post("/api/learn/robust-text")
 def learn_robust_text():
-    import text_stego as txt
+    import text_stega as txt
     try:
         return jsonify(ok=True, lab=labs.robustness_text(request.form.get("cover", ""), request.form.get("message", ""),
                                                           request.form.get("password") or None))
@@ -208,7 +208,7 @@ def log(uid: int, action: str, carrier: str, method: str, *, locked: bool, messa
 
 
 def _record(response):
-    """Runs after every request. Records Member 2's Send and Reveal calls; changes nothing else."""
+    """Runs after every request. Records Member 3's Send and Reveal calls; changes nothing else."""
     try:
         ep, uid = request.endpoint, g.get("m4_uid")
         if ep not in ("send_message", "reveal_message", "delete_me") or not uid or request.method not in ("POST", "DELETE"):

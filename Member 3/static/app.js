@@ -4,7 +4,8 @@
   const enc = new TextEncoder();
   const bytes = (s) => enc.encode(s).length;
 
-  const state = { me: null, view: 'inbox', items: [], selected: null, gallery: null, unread: 0 };
+  const state = { me: null, view: 'inbox', items: [], selected: null, gallery: null, unread: 0, filter: 'all' };
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const authEl = $('#auth'), appEl = $('#app'), composeEl = $('#compose');
 
   // ------------------------------------------------------------ helpers
@@ -153,6 +154,8 @@
     state.view = name;
     $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name && b.closest('.nav')));
     $('[data-title]').textContent = TITLES[name];
+    const icon = $(`.nav [data-nav="${name}"] svg`);          // same icon as the menu item
+    $('[data-title-icon]').replaceChildren(...(icon ? [icon.cloneNode(true)] : []));
     const isMail = name === 'inbox' || name === 'sent';
     $$('[data-view]').forEach(v => { v.hidden = v.dataset.view !== (isMail ? 'mail' : name); });
     $('[data-search-wrap]').hidden = !isMail;
@@ -174,19 +177,66 @@
     refreshUnread();
   }
 
+  const FILTERS = {
+    all: () => true,
+    unread: (m) => m.direction === 'inbox' && !m.read,
+    pinned: (m) => m.pinned,
+    locked: (m) => m.locked,
+    image: (m) => m.carrier === 'image',
+    text: (m) => m.carrier === 'text',
+  };
+
+  // Date buckets for the group headers. Pinned messages always come first.
+  function bucket(m) {
+    if (m.pinned) return 'Pinned';
+    const d = new Date(m.created.replace(' ', 'T') + 'Z'), now = new Date();
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((day(now) - day(d)) / 864e5);
+    if (diff <= 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    if (diff < 7) return 'This week';
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'This month';
+    return 'Earlier';
+  }
+
+  function visibleItems() {
+    const q = $('[data-search]').value.trim().toLowerCase();
+    const f = FILTERS[state.filter] || FILTERS.all;
+    return state.items
+      .filter(m => f(m) && (!q || [m.with?.name, m.with?.handle, m.subject].join(' ').toLowerCase().includes(q)))
+      .sort((a, b) => (b.pinned - a.pinned) || (a.created < b.created ? 1 : a.created > b.created ? -1 : b.id - a.id));
+  }
+
   function renderList() {
     const list = $('[data-list]');
-    $$('.row', list).forEach(r => r.remove());
-    const q = $('[data-search]').value.trim().toLowerCase();
-    const items = state.items.filter(m => !q || [m.with?.name, m.with?.handle, m.subject].join(' ').toLowerCase().includes(q));
+    $$('.row, .group-h', list).forEach(r => r.remove());
+    const inbox = state.view === 'inbox';
+    $('[data-filter="unread"]').hidden = !inbox;
+    if (!inbox && state.filter === 'unread') state.filter = 'all';
+    $$('[data-filter]').forEach(c => c.classList.toggle('active', c.dataset.filter === state.filter));
+    const counts = { unread: state.items.filter(FILTERS.unread).length, pinned: state.items.filter(FILTERS.pinned).length };
+    $$('[data-count]').forEach(b => { b.textContent = counts[b.dataset.count] || ''; });
+
+    const items = visibleItems();
     const empty = $('[data-empty]');
     empty.hidden = items.length > 0;
-    $('[data-empty-text]').textContent = q ? 'No matches' : state.view === 'inbox' ? 'No messages yet' : 'Nothing sent yet';
+    const q = $('[data-search]').value.trim();
+    $('[data-empty-text]').textContent = q || state.filter !== 'all' ? 'No matches' : inbox ? 'No messages yet' : 'Nothing sent yet';
     const tpl = $('#tpl-row').content;
-    for (const m of items) {
+    let group = null;
+    items.forEach((m, i) => {
+      const g = bucket(m);
+      if (g !== group) {
+        group = g;
+        const h = document.createElement('div');
+        h.className = 'group-h'; h.textContent = g;
+        list.insertBefore(h, empty);
+      }
       const row = tpl.firstElementChild.cloneNode(true);
       row.dataset.id = m.id;
-      row.classList.toggle('unread', state.view === 'inbox' && !m.read);
+      row.style.setProperty('--i', Math.min(i, 12));
+      row.classList.toggle('unread', inbox && !m.read);
+      row.classList.toggle('pinned', !!m.pinned);
       row.classList.toggle('active', state.selected?.id === m.id);
       setAvatar($('.avatar', row), m.with);
       $('.row-name', row).textContent = (state.view === 'sent' ? 'To ' : '') + (m.with?.name || m.with?.handle || '?');
@@ -195,10 +245,44 @@
       $('.row-subject', row).textContent = m.subject ? `· ${m.subject}` : '';
       const th = $('.row-thumb', row);
       if (m.thumb_url) { th.src = m.thumb_url; th.hidden = false; }
-      row.addEventListener('click', () => openMessage(m));
-      list.appendChild(row);
-    }
+      $('[data-act="read"]', row).hidden = !inbox;
+      $('[data-act="pin"]', row).title = m.pinned ? 'Unpin' : 'Pin';
+      $('[data-act="read"]', row).title = m.read ? 'Mark unread' : 'Mark read';
+      row.addEventListener('click', (e) => {
+        const act = e.target.closest('[data-act]');
+        if (!act) return openMessage(m);
+        e.stopPropagation();
+        if (act.dataset.act === 'pin') updateMessage(m, { pinned: !m.pinned });
+        if (act.dataset.act === 'read') updateMessage(m, { read: !m.read });
+        if (act.dataset.act === 'delete') deleteMessage(m);
+      });
+      row.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openMessage(m); } });
+      list.insertBefore(row, empty);
+    });
   }
+  $$('[data-filter]').forEach(c => c.addEventListener('click', () => { state.filter = c.dataset.filter; renderList(); }));
+
+  // Pin / unpin and read / unread, saved on the server for this side of the message only.
+  async function updateMessage(m, patch) {
+    const res = await api(`/api/messages/${m.id}`, { method: 'PATCH', json: { ...patch, box: state.view } });
+    if (!res.ok) { toast(res.error); return false; }
+    Object.assign(m, { pinned: res.message.pinned, read: res.message.read });
+    renderList();
+    if (state.selected?.id === m.id) syncTools(m);
+    if ('read' in patch) refreshUnread();
+    if ('pinned' in patch) toast(m.pinned ? 'Pinned' : 'Unpinned');
+    return true;
+  }
+
+  async function deleteMessage(m) {
+    if (!m || !confirm('Delete this message?')) return;
+    const res = await api(`/api/messages/${m.id}`, { method: 'DELETE' });
+    if (!res.ok) return toast(res.error);
+    state.items = state.items.filter(x => x.id !== m.id);
+    if (state.selected?.id === m.id) closeDetail();
+    renderList(); refreshUnread(); toast('Deleted');
+  }
+
   $('[data-search]').addEventListener('input', renderList);
   $('[data-search-wrap]').addEventListener('submit', (e) => { e.preventDefault(); renderList(); $('[data-search]').focus(); });
 
@@ -227,8 +311,14 @@
     $('[data-d-subject]').textContent = m.subject || '';
 
     const im = $('[data-d-img]'), tx = $('[data-d-text]');
-    im.hidden = m.carrier !== 'image'; tx.hidden = m.carrier !== 'text';
+    $('[data-stage]').hidden = m.carrier !== 'image'; tx.hidden = m.carrier !== 'text';
+    xrayOff();
     if (m.carrier === 'image') im.src = m.file_url; else tx.textContent = m.text;
+    $('[data-xray]').hidden = m.carrier !== 'image';
+    $('[data-show-hidden]').hidden = m.carrier !== 'text';
+    $('[data-show-hidden]').classList.remove('on');
+    $('[data-carrier-note]').textContent = '';
+    syncTools(m);
 
     const dl = $('[data-download]');
     dl.hidden = m.carrier !== 'image';
@@ -255,11 +345,16 @@
     if (state.selected?.id !== m.id) return;
     if (!res.ok) return status(stat, res.error);
     const sec = $('[data-secret]');
-    sec.textContent = res.message; sec.hidden = false;
+    sec.hidden = false;
+    decrypt(sec, res.message);
+    if (m.carrier === 'image' && !reduceMotion) {
+      const st = $('[data-stage]');
+      st.classList.remove('scanning'); void st.offsetWidth; st.classList.add('scanning');
+    }
     $('[data-unlock]').hidden = true;
     if (!m.read && m.direction === 'inbox') {
       m.read = true;
-      $(`.row[data-id="${m.id}"]`)?.classList.remove('unread');
+      renderList();
       refreshUnread();
     }
   }
@@ -270,13 +365,171 @@
     reveal(state.selected, pw);
   });
 
-  $('[data-delete]').addEventListener('click', async () => {
+  $('[data-delete]').addEventListener('click', () => deleteMessage(state.selected));
+
+  // ---------- reading-pane toolbar
+  function syncTools(m) {
+    const inbox = m.direction === 'inbox';
+    $('[data-reply]').hidden = !inbox;
+    $('[data-mark-unread]').hidden = !inbox;
+    $('[data-pin]').classList.toggle('on', !!m.pinned);
+    $('[data-pin-label]').textContent = m.pinned ? 'Pinned' : 'Pin';
+  }
+  $('[data-pin]').addEventListener('click', () => state.selected && updateMessage(state.selected, { pinned: !state.selected.pinned }));
+  $('[data-mark-unread]').addEventListener('click', async () => {
     const m = state.selected;
-    if (!m || !confirm('Delete this message?')) return;
-    const res = await api(`/api/messages/${m.id}`, { method: 'DELETE' });
-    if (!res.ok) return toast(res.error);
-    state.items = state.items.filter(x => x.id !== m.id);
-    closeDetail(); renderList(); refreshUnread(); toast('Deleted');
+    if (m && await updateMessage(m, { read: false })) { closeDetail(); toast('Marked unread'); }
+  });
+  $('[data-reply]').addEventListener('click', () => reply(state.selected));
+  function reply(m) {
+    if (!m || m.direction !== 'inbox' || !m.with) return;
+    resetCompose();
+    openCompose();
+    form.to.value = m.with.handle;
+    form.to.dispatchEvent(new Event('input'));
+    form.subject.value = m.subject ? (/^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`).slice(0, 80) : '';
+    setTimeout(() => form.message.focus(), 60);
+  }
+
+  // ---------- the secret "decrypts" into place
+  const GLYPHS = '01▚▞▙▟░▒#%&@$§';
+  let decryptRun = 0;
+  function decrypt(el, text) {
+    const run = ++decryptRun;
+    if (reduceMotion || text.length > 600) { el.textContent = text; return; }
+    const chars = [...text], start = performance.now(), dur = Math.min(900, 300 + chars.length * 12);
+    el.classList.add('decrypting');
+    const frame = (now) => {
+      if (run !== decryptRun) return;
+      const t = (now - start) / dur;
+      el.textContent = chars.map((c, i) => (/\s/.test(c) || t >= (i / chars.length) * 0.8 + 0.2 ? c : GLYPHS[(Math.random() * GLYPHS.length) | 0])).join('');
+      if (t < 1) requestAnimationFrame(frame);
+      else { el.textContent = text; el.classList.remove('decrypting'); }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- X-ray lens: magnifies the lowest bit of every colour value,
+  // the layer where an image message lives. Busy areas look like static.
+  const lens = $('[data-lens]'), stageImg = $('[data-d-img]');
+  let lsb = null, lsbFor = null;
+  function xrayOff() {
+    lens.hidden = true;
+    $('[data-xray]').classList.remove('on');
+    $('[data-stage]').classList.remove('xray');
+  }
+  function buildLsb() {
+    if (lsb && lsbFor === stageImg.src) return lsb;
+    const w = stageImg.naturalWidth, h = stageImg.naturalHeight;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(stageImg, 0, 0);
+    const img = ctx.getImageData(0, 0, w, h), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      d[i] = (d[i] & 1) * 255; d[i + 1] = (d[i + 1] & 1) * 255; d[i + 2] = (d[i + 2] & 1) * 255; d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    lsb = c; lsbFor = stageImg.src;
+    return c;
+  }
+  function contentBox() {   // where the picture is drawn inside the <img> (object-fit: contain)
+    const r = stageImg.getBoundingClientRect(), nw = stageImg.naturalWidth, nh = stageImg.naturalHeight;
+    const k = Math.min(r.width / nw, r.height / nh);
+    return { r, k, x: r.left + (r.width - nw * k) / 2, y: r.top + (r.height - nh * k) / 2, w: nw * k, h: nh * k };
+  }
+  function drawLens(cx, cy) {
+    const b = contentBox(), dpr = devicePixelRatio || 1, R = 74, zoom = 3;
+    const W = Math.round(b.r.width * dpr), H = Math.round(b.r.height * dpr);
+    if (lens.width !== W || lens.height !== H) { lens.width = W; lens.height = H; }
+    const ctx = lens.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, b.r.width, b.r.height);
+    if (cx < b.x || cy < b.y || cx > b.x + b.w || cy > b.y + b.h) return;
+    const lx = cx - b.r.left, ly = cy - b.r.top;
+    const nx = (cx - b.x) / b.k, ny = (cy - b.y) / b.k;   // the point under the cursor, in image pixels
+    const src = (2 * R) / zoom;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.clip();
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#000'; ctx.fillRect(lx - R, ly - R, 2 * R, 2 * R);
+    ctx.drawImage(lsb, nx - src / 2, ny - src / 2, src, src, lx - R, ly - R, 2 * R, 2 * R);
+    ctx.restore();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.95)';
+    ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath(); ctx.arc(lx, ly, R + 2, 0, Math.PI * 2); ctx.stroke();
+  }
+  $('[data-xray]').addEventListener('click', () => {
+    if (!lens.hidden) { xrayOff(); $('[data-carrier-note]').textContent = ''; return; }
+    if (!stageImg.complete || !stageImg.naturalWidth) return toast('Image still loading');
+    try { buildLsb(); } catch { return toast('X-ray is not available for this image'); }
+    lens.hidden = false;
+    $('[data-xray]').classList.add('on');
+    $('[data-stage]').classList.add('xray');
+    $('[data-carrier-note]').textContent = 'Move over the picture';
+    const b = contentBox(); drawLens(b.x + b.w / 2, b.y + b.h / 2);
+  });
+  const stage = $('[data-stage]');
+  stage.addEventListener('pointermove', (e) => { if (!lens.hidden) drawLens(e.clientX, e.clientY); });
+  stage.addEventListener('pointerdown', (e) => { if (!lens.hidden) drawLens(e.clientX, e.clientY); });
+  stage.addEventListener('pointerleave', (e) => { if (!lens.hidden && e.pointerType === 'mouse') lens.getContext('2d').clearRect(0, 0, lens.width, lens.height); });
+
+  // ---------- Show hidden: a text message's invisible characters, drawn as a colour barcode
+  // Member 2's characters (U+200B, U+200C, U+2060, U+2063), plus U+200D from the website's first format
+  const ZW = { '\u200b': 0, '\u200c': 1, '\u2060': 2, '\u2063': 3, '\u200d': 3 };
+  function renderHidden(pre, text) {
+    pre.textContent = '';
+    let i = 0, count = 0;
+    while (i < text.length) {
+      let j = i;
+      while (j < text.length && text[j] in ZW) j++;
+      if (j - i >= 8) {                       // a hidden message is one long run; short ones belong to emoji or Persian
+        const run = document.createElement('span'); run.className = 'zw-run';
+        for (let k = i; k < j; k++) { const bar = document.createElement('i'); bar.className = `zw z${ZW[text[k]]}`; run.appendChild(bar); }
+        run.title = `${j - i} invisible characters`;
+        pre.appendChild(run); count += j - i; i = j;
+      } else {
+        let e = Math.max(j, i + 1);
+        while (e < text.length && !(text[e] in ZW)) e++;
+        pre.appendChild(document.createTextNode(text.slice(i, e))); i = e;
+      }
+    }
+    return count;
+  }
+  // English packets use 4 characters per byte; Arabic ones (only U+200B and U+2060) use 8.
+  // Judge by the hidden run only: a Persian cover has its own U+200C outside the run.
+  const perByte = (text) => { const run = (text.match(/[\u200b\u200c\u200d\u2060\u2063]{8,}/) || [''])[0]; return /[\u200c\u2063\u200d]/.test(run) ? 4 : 8; };
+  $('[data-show-hidden]').addEventListener('click', (e) => {
+    const btn = e.currentTarget, pre = $('[data-d-text]'), m = state.selected;
+    if (!m) return;
+    const on = !btn.classList.contains('on');
+    btn.classList.toggle('on', on);
+    if (on) {
+      const n = renderHidden(pre, m.text);
+      $('[data-carrier-note]').textContent = n ? `${n} invisible characters · ${Math.round(n / perByte(m.text))} bytes` : 'None found';
+    } else { pre.textContent = m.text; $('[data-carrier-note]').textContent = ''; }
+  });
+
+  // ---------- keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (!state.me || appEl.hidden || !composeEl.hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+    const mail = state.view === 'inbox' || state.view === 'sent';
+    const k = e.key.toLowerCase();
+    if (k === 'c') { e.preventDefault(); openCompose(); }
+    else if (k === '/' && mail) { e.preventDefault(); $('[data-search]').focus(); }
+    else if ((k === 'j' || k === 'k') && mail) {
+      const items = visibleItems();
+      if (!items.length) return;
+      const at = items.findIndex(m => m.id === state.selected?.id);
+      const next = items[Math.max(0, Math.min(items.length - 1, at < 0 ? 0 : at + (k === 'j' ? 1 : -1)))];
+      openMessage(next);
+      $(`.row[data-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest' });
+    }
+    else if (k === 'p' && state.selected) updateMessage(state.selected, { pinned: !state.selected.pinned });
+    else if (k === 'r' && state.selected) { e.preventDefault(); reply(state.selected); }
+    else if (k === 'u' && state.selected?.direction === 'inbox') $('[data-mark-unread]').click();
+    else if (e.key === 'Delete' && state.selected) deleteMessage(state.selected);
   });
 
   $('[data-copy-text]').addEventListener('click', async (e) => {
@@ -434,7 +687,8 @@
   }
   form.message.addEventListener('input', renderMeter);
   form.format.addEventListener('change', refreshCapacity);
-  form.lock.addEventListener('change', () => { form.password.hidden = !form.lock.checked; refreshCapacity(); });
+  form.lock.addEventListener('change', () => { syncLock(); refreshCapacity(); });
+  function syncLock() { form.password.hidden = !form.lock.checked; $('[data-lock-warn]').hidden = form.lock.checked; }
 
   $$('[data-carrier]', form).forEach(b => b.addEventListener('click', () => {
     compose.carrier = b.dataset.carrier;
@@ -463,14 +717,14 @@
     composeEl.hidden = false;
     if (opts.gallery && state.gallery) selectCover({ gallery: opts.gallery });
     if (!state.gallery) fetchGallery().then(ok => { if (ok && opts.gallery) selectCover({ gallery: opts.gallery }); });
-    form.password.hidden = !form.lock.checked;
+    syncLock();
     setTimeout(() => (form.to.value ? form.message : form.to).focus(), 50);
   }
   function closeCompose() { composeEl.hidden = true; }
   function resetCompose() {
     form.reset();
     form.lock.checked = state.me?.prefs?.default_lock ?? true;  // Security → "Lock new messages by default"
-    form.password.hidden = !form.lock.checked;
+    syncLock();
     selectCover({});
     compose.toUser = null; compose.carrier = 'image';
     $('[data-to-status]').textContent = '';
@@ -534,14 +788,90 @@
 
   const avatarInput = $('[data-avatar-input]');
   $('[data-avatar-pick]').addEventListener('click', () => avatarInput.click());
-  avatarInput.addEventListener('change', async () => {
-    const file = avatarInput.files[0];
-    if (!file) return;
-    const fd = new FormData(); fd.append('avatar', file);
+  $('[data-avatar-open]').addEventListener('click', () => avatarInput.click());
+  async function uploadAvatar(blob, name) {
+    const fd = new FormData(); fd.append('avatar', blob, name);
     const res = await api('/api/me/avatar', { method: 'POST', body: fd });
-    avatarInput.value = '';
-    if (!res.ok) return toast(res.error);
+    if (!res.ok) { toast(res.error); return false; }
     state.me = res.user; renderMe(); toast('Picture updated');
+    return true;
+  }
+  avatarInput.addEventListener('change', () => {
+    const file = avatarInput.files[0];
+    avatarInput.value = '';
+    if (file) openCropper(file);
+  });
+
+  // ---------- profile picture cropper: drag to move, slider or wheel to zoom.
+  // The square stage is what gets saved; the circle shows what others will see.
+  const cropEl = $('#cropper'), cropStage = $('[data-crop-stage]'), cropImg = $('[data-crop-img]'), cropZoom = $('[data-crop-zoom]');
+  const crop = { file: null, url: null, w: 0, h: 0, S: 0, base: 1, z: 1, x: 0, y: 0 };
+  function cropClamp() {
+    const k = crop.base * crop.z, dw = crop.w * k, dh = crop.h * k;
+    const mx = Math.max(0, (dw - crop.S) / 2), my = Math.max(0, (dh - crop.S) / 2);
+    crop.x = Math.max(-mx, Math.min(mx, crop.x)); crop.y = Math.max(-my, Math.min(my, crop.y));
+  }
+  function cropDraw() {
+    cropClamp();
+    const k = crop.base * crop.z;
+    cropImg.style.width = `${crop.w * k}px`; cropImg.style.height = `${crop.h * k}px`;
+    cropImg.style.transform = `translate(-50%, -50%) translate(${crop.x}px, ${crop.y}px)`;
+  }
+  function setZoom(z, cx = 0, cy = 0) {   // zoom around a point (stage-centre coordinates)
+    const old = crop.z;
+    crop.z = Math.max(1, Math.min(5, z));
+    const r = crop.z / old;
+    crop.x = cx - (cx - crop.x) * r; crop.y = cy - (cy - crop.y) * r;
+    cropZoom.value = crop.z; cropDraw();
+  }
+  function openCropper(file) {
+    if (crop.url) URL.revokeObjectURL(crop.url);
+    crop.file = file; crop.url = URL.createObjectURL(file);
+    cropImg.onload = () => {
+      cropEl.hidden = false;
+      crop.S = cropStage.clientWidth;
+      crop.w = cropImg.naturalWidth; crop.h = cropImg.naturalHeight;
+      crop.base = Math.max(crop.S / crop.w, crop.S / crop.h);   // smallest size that fills the square
+      crop.z = 1; crop.x = 0; crop.y = 0; cropZoom.value = 1;
+      cropDraw();
+    };
+    cropImg.onerror = () => { uploadAvatar(file, file.name); };   // e.g. HEIC the browser can't show: the server centres it
+    cropImg.src = crop.url;
+  }
+  function closeCropper() { cropEl.hidden = true; }
+  let drag = null;
+  cropStage.addEventListener('pointerdown', (e) => {
+    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: crop.x, y: crop.y };
+    cropStage.setPointerCapture(e.pointerId); cropStage.classList.add('dragging');
+  });
+  cropStage.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    crop.x = drag.x + e.clientX - drag.sx; crop.y = drag.y + e.clientY - drag.sy; cropDraw();
+  });
+  const endDrag = () => { drag = null; cropStage.classList.remove('dragging'); };
+  cropStage.addEventListener('pointerup', endDrag);
+  cropStage.addEventListener('pointercancel', endDrag);
+  cropStage.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = cropStage.getBoundingClientRect();
+    setZoom(crop.z * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+  }, { passive: false });
+  cropZoom.addEventListener('input', () => setZoom(Number(cropZoom.value)));
+  $$('[data-crop-step]').forEach(b => b.addEventListener('click', () => setZoom(crop.z + Number(b.dataset.cropStep))));
+  $$('[data-crop-close]').forEach(b => b.addEventListener('click', closeCropper));
+  cropEl.addEventListener('click', (e) => { if (e.target === cropEl) closeCropper(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !cropEl.hidden) closeCropper(); });
+  $('[data-crop-save]').addEventListener('click', async () => {
+    const btn = $('[data-crop-save]');
+    const k = crop.base * crop.z, out = 512;
+    const left = crop.S / 2 + crop.x - (crop.w * k) / 2, top = crop.S / 2 + crop.y - (crop.h * k) / 2;
+    const c = document.createElement('canvas'); c.width = c.height = out;
+    c.getContext('2d').drawImage(cropImg, -left / k, -top / k, crop.S / k, crop.S / k, 0, 0, out, out);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+    busy(btn, true, 'Saving…');
+    const ok = await uploadAvatar(blob, 'avatar.jpg');
+    busy(btn, false);
+    if (ok) closeCropper();
   });
   $('[data-avatar-remove]').addEventListener('click', async () => {
     const res = await api('/api/me/avatar', { method: 'DELETE' });

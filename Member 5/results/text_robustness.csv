@@ -1,18 +1,19 @@
-edit,result
-no change (copied exactly),message recovered
-text added at the end (a reply),message recovered
-text added at the start,message recovered
-changed to upper case,message recovered
-spaces trimmed at both ends,message recovered
-repeated spaces collapsed,message recovered
-wrapped to 40 columns,message recovered
-Unicode normalisation NFC,message recovered
-Unicode normalisation NFKC,message recovered
-stored as JSON and read back,message recovered
-stored as UTF-16 and read back,message recovered
-a reply that contains a joined emoji,rejected (TextStegoError)
-another stego text pasted after it,rejected (TextStegoError)
-one hidden character deleted,rejected (TextStegoError)
-only the first half copied,rejected (TextStegoError)
-sent through an ASCII-only system,rejected (TextStegoError)
-non-printable characters removed,rejected (TextStegoError)
+edit,english_cover,arabic_cover
+no change (copied exactly),message recovered,message recovered
+text added at the end (a reply),message recovered,message recovered
+text added at the start,message recovered,message recovered
+changed to upper case,message recovered,message recovered
+spaces trimmed at both ends,message recovered,message recovered
+repeated spaces collapsed,message recovered,message recovered
+wrapped to 40 columns,message recovered,message recovered
+Unicode normalisation NFC,message recovered,message recovered
+Unicode normalisation NFKC,message recovered,message recovered
+stored as JSON and read back,message recovered,message recovered
+stored as UTF-16 and read back,message recovered,message recovered
+a reply that contains a joined emoji,message recovered,message recovered
+another stego text pasted after it,rejected (TextStegoError),rejected (TextStegoError)
+one hidden character deleted,rejected (TextStegoError),rejected (TextStegoError)
+cut in the middle of the hidden block,rejected (TextStegoError),rejected (TextStegoError)
+cut after the hidden block,message recovered,message recovered
+sent through an ASCII-only system,rejected (TextStegoError),rejected (TextStegoError)
+non-printable characters removed,rejected (TextStegoError),rejected (TextStegoError)

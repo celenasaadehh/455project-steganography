@@ -2,7 +2,7 @@
 
 Nothing here re-implements hiding. Every trace runs the team's real code:
   * images -> Member 1's image_stego.embed() / extract()
-  * text   -> Member 2's text_stego.hide() / reveal()
+  * text   -> Member 2's text_stega.hide() / reveal()
 and then looks inside the result to explain what happened, step by step.
 
 Image traces read a few internal helpers of image_stego (_prepare, _Spatial, _HSEED,
@@ -18,18 +18,22 @@ import numpy as np
 from PIL import Image
 
 import image_stego as img   # Member 1
-import text_stego as txt    # Member 2
+import text_stega as txt    # Member 2
 
 DISPLAY_MAX = 480     # pictures shown in the browser are scaled to this size
 GROUP_EXAMPLES = 4    # how many groups of 7 values we show in detail
 BITS_SHOWN = 512      # cap on bits sent to the page
 
 CHANNELS = "RGB"
-TEXT_SYMBOLS = {      # Member 2's alphabet: 4 invisible characters, 2 bits each
+TEXT_SYMBOLS = {      # Member 2's English alphabet: 4 invisible characters, 2 bits each
     "\u200b": ("00", "U+200B", "Zero Width Space"),
     "\u200c": ("01", "U+200C", "Zero Width Non-Joiner"),
-    "\u200d": ("10", "U+200D", "Zero Width Joiner"),
-    "\u2060": ("11", "U+2060", "Word Joiner"),
+    "\u2060": ("10", "U+2060", "Word Joiner"),
+    "\u2063": ("11", "U+2063", "Invisible Separator"),
+}
+ARABIC_SYMBOLS = {    # Member 2's Arabic alphabet: 2 characters, 1 bit each (safe between joined letters)
+    "\u200b": ("0", "U+200B", "Zero Width Space"),
+    "\u2060": ("1", "U+2060", "Word Joiner"),
 }
 
 
@@ -204,21 +208,20 @@ def trace_text(cover: str, message: str, password: str | None = None) -> dict:
     """Hide `message` in `cover` with Member 2's real hide() and explain every step."""
     stego = txt.hide(cover, message, password or None)
     clean_cover = txt.strip_hidden(cover)
-    pos = clean_cover.find(" ")
-    pos = pos if pos > 0 else len(clean_cover)
-    symbols = "".join(c for c in stego if c in TEXT_SYMBOLS)
-    payload = txt._decode(symbols)
-    locked = payload[3] == 1
+    pos = txt.insert_position(clean_cover)
+    mode, symbols, payload = txt.read_packet(stego)
+    locked = payload[:2] == txt.LOCKED_MAGIC
+    width = 2 if mode == "English" else 1          # bits per invisible character
+    table = TEXT_SYMBOLS if width == 2 else ARABIC_SYMBOLS
 
     def label(i: int) -> str:
-        if i < 2: return "Tag 'ZW'"
-        if i == 2: return "Version"
-        if i == 3: return "Locked flag"
+        if i < 2: return "Tag 'TL'" if locked else "Tag 'TS'"
         if locked:
-            if i < 20: return "Salt"
-            if i < 32: return "Nonce"
+            if i < 18: return "Salt"
+            if i < 30: return "Nonce"
             if i >= len(payload) - 16: return "Auth tag"
             return "Encrypted message"
+        if i < 4: return "Length"
         if i >= len(payload) - 4: return "Check (CRC)"
         return "Message"
 
@@ -226,7 +229,7 @@ def trace_text(cover: str, message: str, password: str | None = None) -> dict:
     for i, b in enumerate(payload[:64]):
         bits = f"{b:08b}"
         rows.append({"index": i, "field": label(i), "value": b, "bits": bits,
-                     "pairs": [bits[k:k + 2] for k in range(0, 8, 2)]})
+                     "pairs": [bits[k:k + width] for k in range(0, 8, width)]})
 
     recovered = txt.reveal(stego, password or None)
     return {
@@ -234,10 +237,11 @@ def trace_text(cover: str, message: str, password: str | None = None) -> dict:
         "message_bits": bits_of(message.encode())[:BITS_SHOWN],
         "cover": clean_cover, "stego": stego, "insert_at": pos,
         "locked": locked,
+        "mode": mode, "bits_per_symbol": width,
         "payload_bytes": len(payload),
         "payload_rows": rows,
         "symbols": len(symbols),
-        "symbol_table": [{"bits": v[0], "code": v[1], "name": v[2]} for v in TEXT_SYMBOLS.values()],
+        "symbol_table": [{"bits": v[0], "code": v[1], "name": v[2]} for v in table.values()],
         "stats": {"cover_chars": len(clean_cover), "stego_chars": len(stego), "hidden_chars": len(symbols)},
         "recovered": recovered,
         "ok": recovered == message,
@@ -246,7 +250,10 @@ def trace_text(cover: str, message: str, password: str | None = None) -> dict:
 
 def check_text(text: str, password: str | None = None) -> dict:
     """'Try it yourself': look for a hidden message in pasted text with Member 2's reveal()."""
-    hidden = sum(1 for c in text if c in TEXT_SYMBOLS)
+    try:
+        hidden = len(txt.find_hidden(text))
+    except txt.TextStegoError:
+        hidden = 0
     try:
         return {"found": True, "message": txt.reveal(text, password or None), "hidden_chars": hidden}
     except txt.TextPasswordError as exc:

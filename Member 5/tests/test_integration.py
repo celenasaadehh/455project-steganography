@@ -1,7 +1,7 @@
 """Integration tests: the two algorithms together, and through the website.
 
 The first part checks that the image and text modules can be combined. The
-second part drives Member 2's Flask application the way the browser does
+second part drives Member 3's Flask application the way the browser does
 (register, send, open the inbox, reveal), using Flask's built-in test client.
 The website's data folder is replaced by a temporary folder, so running the
 tests never touches real accounts or messages.
@@ -60,7 +60,7 @@ class AlgorithmsTogetherTests(unittest.TestCase):
 
 
 class WebsiteTests(unittest.TestCase):
-    """End-to-end tests of Member 2's website (Stego Mail)."""
+    """End-to-end tests of Member 3's website (Stego Mail)."""
 
     @classmethod
     def setUpClass(cls):
@@ -68,8 +68,8 @@ class WebsiteTests(unittest.TestCase):
             import flask  # noqa: F401
         except ImportError:
             raise unittest.SkipTest("Flask is not installed")
-        if not (common.MEMBER2 / "app.py").exists():
-            raise unittest.SkipTest("Member 2's website is not in the repository")
+        if not (common.MEMBER3 / "app.py").exists():
+            raise unittest.SkipTest("Member 3's website is not in the repository")
 
         # Point the website at an empty temporary data folder before it starts.
         cls.folder = tempfile.TemporaryDirectory()
@@ -134,7 +134,7 @@ class WebsiteTests(unittest.TestCase):
 
     def test_image_message_with_a_gallery_picture(self):
         if not common.gallery_covers():
-            self.skipTest("Member 2's gallery pictures are not in the repository")
+            self.skipTest("Member 3's gallery pictures are not in the repository")
         sent = self.send(self.alice, carrier="image", gallery="1", format="PNG", message="hidden in the ocean")
         self.assertEqual(sent.status_code, 200, sent.get_json())
         message = sent.get_json()["message"]

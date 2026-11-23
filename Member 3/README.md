@@ -1,4 +1,4 @@
-# Stego Mail (Member 2)
+# Stego Mail (Member 3)
 
 An e-mail style website where people send each other secret messages hidden inside pictures or ordinary text.
 
@@ -34,13 +34,12 @@ JPEG needs Member 1's compiled helper at `Member 1\build\jpegtool.exe` (see Memb
 | `app.py` | Flask server: pages, auth, profile, gallery, messages API |
 | `db.py` | SQLite schema and helpers (`data/stego.db`) |
 | `mailer.py`, `mail.env.example` | SMTP sending of verification codes; settings template |
-| `text_stego.py` | Text carrier: zero-width character steganography with optional AES-256-GCM |
 | `templates/index.html` | The single page: sign-in, app shell, compose sheet |
 | `static/app.css`, `static/app.js` | Design (blue and white, dark mode) and page behaviour |
 | `static/gallery/` | The 10 built-in pictures (`tools/make_gallery.py` regenerates them) |
 | `data/` | Created at run time: database, sent files, avatars, session key. Not committed. |
 
-Image steganography is imported from `../Member 1/image_stego.py`; nothing is copied.
+Image steganography is imported from `../Member 1/image_stego.py` and text steganography from `../Member 2/text_stega.py`; nothing is copied.
 
 ## API (for the report)
 

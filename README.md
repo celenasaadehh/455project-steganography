@@ -93,7 +93,8 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 ```
 455project-steganography/
 ├── Member 1/   Image steganography (PNG, BMP, JPEG)
-├── Member 2/   Text steganography + the Stego Mail website
+├── Member 2/   Text steganography (spread zero-width algorithm, research)
+├── Member 3/   The Stego Mail website (Flask) + its text carrier
 ├── Member 4/   Learn tab, step-by-step walkthrough, History tab, research
 └── Member 5/   Automated tests, capacity and distortion evaluation, birthday attack experiment
 ```
@@ -101,8 +102,8 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 | Member | Responsibility | Main files |
 |---|---|---|
 | **1: Image steganography** | Image algorithms: texture-adaptive matrix embedding (PNG/BMP), JPEG DCT method, capacity, quality measurement, tests | `Member 1/image_stego.py`, `Member 1/support/` |
-| **2: Text steganography** | Zero-width text algorithm, plus the Flask website: accounts, compose, inbox, gallery, database | `Member 2/text_stego.py`, `Member 2/app.py`, `Member 2/templates/`, `Member 2/static/` |
-| **3: Main web application & integration** | UI and integration of the algorithms | *in progress* |
+| **2: Text steganography** | Zero-width text algorithm (English and Arabic, optional password) used by the website, and research | `Member 2/text_stega.py`, `Member 2/Research.md` |
+| **3: Main web application & integration** | Flask website: accounts, compose, inbox, gallery, database; connects Member 1 and Member 2 | `Member 3/app.py`, `Member 3/templates/`, `Member 3/static/` |
 | **4: Educational & convenience features** | Learn tab, step-by-step visualisation of the real algorithms, History tab, research on similar applications | `Member 4/` |
 | **5: Testing, evaluation & birthday attack** | Automated tests, distortion and capacity measurements, birthday attack experiment | `Member 5/tests/`, `Member 5/evaluate_images.py`, `Member 5/evaluate_text.py`, `Member 5/birthday_attack.py`, `Member 5/results/` |
 
@@ -116,14 +117,14 @@ Each member folder has its own README with more detail. Member 1's `support/TECH
 
 **Requirements:** Python 3.11+.
 
-**Windows** (from the `Member 2` folder):
+**Windows** (from the `Member 3` folder):
 ```powershell
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe app.py
 ```
 
-**macOS / Linux** (from the `Member 2` folder):
+**macOS / Linux** (from the `Member 3` folder):
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -134,8 +135,8 @@ Then open **http://127.0.0.1:5000**. Create two accounts (use a private window f
 
 **Notes**
 - **JPEG** output needs Member 1's one-time native build (see `Member 1/support/TECHNICAL_GUIDE.md`). PNG, BMP and text work without it.
-- **E-mail verification** is off by default. See `Member 2/README.md` to turn it on.
-- Runtime data (database, sent files) is created in `Member 2/data/`, which is not committed.
+- **E-mail verification** is off by default. See `Member 3/README.md` to turn it on.
+- Runtime data (database, sent files) is created in `Member 3/data/`, which is not committed.
 
 ---
 

@@ -1,7 +1,15 @@
-cover,message_recovered,invisible_characters_in_cover,kept_after_hiding,visible_text_unchanged
-English sentence,True,0,0,True
-Arabic sentence,True,0,0,True
-French with accents,True,0,0,True
-one word,True,0,0,True
-emoji joined with U+200D (family),True,2,0,False
-Persian word with U+200C,True,1,0,False
+cover,password,mode_chosen,message_recovered,hidden_characters,visible_text_unchanged
+English sentence,no,English,True,56,True
+English sentence,yes,English,True,208,True
+one word,no,English,True,56,True
+one word,yes,English,True,208,True
+French with accents,no,English,True,56,True
+French with accents,yes,English,True,208,True
+Japanese,no,English,True,56,True
+Japanese,yes,English,True,208,True
+Arabic sentence,no,Arabic,True,112,True
+Arabic sentence,yes,Arabic,True,416,True
+emoji joined with U+200D (family),no,English,True,56,True
+emoji joined with U+200D (family),yes,English,True,208,True
+Persian word with U+200C,no,Arabic,True,112,True
+Persian word with U+200C,yes,Arabic,True,416,True

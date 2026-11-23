@@ -23,10 +23,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "Member 1"))
+sys.path.insert(0, str(ROOT.parent / "Member 2"))
 sys.path.insert(0, str(ROOT.parent / "Member 4"))
 
 import image_stego as img  # noqa: E402  (Member 1's module)
-import text_stego as txt  # noqa: E402
+import text_stega as txt  # noqa: E402  (Member 2's text carrier)
 import db  # noqa: E402
 import mailer  # noqa: E402
 import member4  # noqa: E402  (Member 4: Learn tab + History tab)
@@ -210,6 +211,7 @@ def message_view(m: dict, me: int, box: str | None = None) -> dict:
         "id": m["id"], "carrier": m["carrier"], "format": m["format"], "subject": m["subject"],
         "locked": bool(m["locked"]), "created": m["created"], "read": m["read_at"] is not None,
         "direction": direction,
+        "pinned": bool(m["sender_pinned"] if direction == "sent" else m["recipient_pinned"]),
         "to_me": m["recipient_id"] == me,
         "with": public_user(other),
         "file_url": f"/files/{m['id']}" if m["file"] else None,
@@ -734,6 +736,28 @@ def reveal_message(mid):
     if m["recipient_id"] == me_id and m["read_at"] is None:
         db.run("UPDATE messages SET read_at=datetime('now') WHERE id=?", mid)
     return jsonify(ok=True, message=text)
+
+
+@app.patch("/api/messages/<int:mid>")
+@login_required
+def update_message(mid):
+    """Pin / unpin, and mark read / unread. Only changes the caller's own side of the message."""
+    me_id = session["uid"]
+    m = _load_message(mid, me_id)
+    d = request.get_json(silent=True) or {}
+    box = d.get("box") if d.get("box") in ("inbox", "sent") else ("sent" if m["sender_id"] == me_id else "inbox")
+    if (box == "sent" and m["sender_id"] != me_id) or (box == "inbox" and m["recipient_id"] != me_id):
+        abort(404)
+    on = lambda v: v in (True, 1, "1", "true", "on")
+    if "pinned" in d:
+        col = "recipient_pinned" if box == "inbox" else "sender_pinned"
+        db.run(f"UPDATE messages SET {col}=? WHERE id=?", int(on(d["pinned"])), mid)
+    if "read" in d and box == "inbox":
+        if on(d["read"]):
+            db.run("UPDATE messages SET read_at=COALESCE(read_at, datetime('now')) WHERE id=?", mid)
+        else:
+            db.run("UPDATE messages SET read_at=NULL WHERE id=?", mid)
+    return jsonify(ok=True, message=message_view(db.one("SELECT * FROM messages WHERE id=?", mid), me_id, box))
 
 
 @app.delete("/api/messages/<int:mid>")

@@ -43,7 +43,9 @@ CREATE TABLE IF NOT EXISTS messages (
   created TEXT NOT NULL DEFAULT (datetime('now')),
   read_at TEXT,
   sender_deleted INTEGER NOT NULL DEFAULT 0,
-  recipient_deleted INTEGER NOT NULL DEFAULT 0
+  recipient_deleted INTEGER NOT NULL DEFAULT 0,
+  sender_pinned INTEGER NOT NULL DEFAULT 0,     -- pinned to the top of the sender's Sent
+  recipient_pinned INTEGER NOT NULL DEFAULT 0   -- pinned to the top of the recipient's Inbox
 );
 CREATE TABLE IF NOT EXISTS user_gallery (
   id INTEGER PRIMARY KEY,
@@ -75,6 +77,10 @@ def init():
                           ("auto_delete_days", "INTEGER NOT NULL DEFAULT 0"), ("default_lock", "INTEGER NOT NULL DEFAULT 1")):
             if name not in cols:
                 con.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+        mcols = {r[1] for r in con.execute("PRAGMA table_info(messages)")}
+        for name in ("sender_pinned", "recipient_pinned"):
+            if name not in mcols:
+                con.execute(f"ALTER TABLE messages ADD COLUMN {name} INTEGER NOT NULL DEFAULT 0")
 
 
 @contextmanager
