@@ -1,5 +1,0 @@
-cover,text_stego.py (website),text_stega.py (Text Steganography folder)
-English paragraph,"works, visible text unchanged","works, visible text unchanged"
-Arabic paragraph,"works, visible text unchanged",refused: not enough carrier capacity
-paragraph with a family emoji (U+200D),"message works, visible text changed","works, visible text unchanged"
-Persian text (U+200C),"message works, visible text changed",refused: the carrier already contains reserved invisible characters

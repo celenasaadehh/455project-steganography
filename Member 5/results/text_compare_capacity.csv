@@ -1,7 +1,0 @@
-cover,characters,english_letters,website_method_capacity_bytes,spread_method_capacity_bytes
-one short sentence,39,31,10000,0
-two sentences,80,64,10000,8
-short paragraph (about 50 words),303,250,10000,54
-long paragraph (about 200 words),1211,1000,10000,242
-one page (about 500 words),3025,2500,10000,617
-Arabic paragraph,230,0,10000,0
