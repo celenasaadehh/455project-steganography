@@ -55,9 +55,14 @@ python -m unittest discover -s "Member 4/tests" -v     # from the repository roo
 `learn_trace.py` reads a few internal helpers of Member 1's `image_stego.py` (`_prepare`, `_Spatial`, `_HSEED`, `_HEADER`, `_keys`) to show which pixels were used. If those names change, update `_image_internals()`; the tests will catch it.
 
 ## Detection lab results on the gallery
-Measured on all 10 gallery pictures, three message sizes each (2, 12 and 40 KB):
-- **Plain LSB** was detected every time.
-- **Our app** was never detected at 2 or 12 KB. At 40 KB a few pictures gave a weak signal, usually 1 alarm point compared with up to 30 for plain LSB.
-- For the same message, our app changes about **41% fewer** colour values than plain LSB.
+150 tests: 10 gallery pictures, 5 runs each, at 3 message sizes (2, 12 and 40 KB).
+
+| Message size | Plain LSB | Our app |
+|---|---|---|
+| Small, 2 KB | Caught 50 / 50 | 47 clean, 3 weak signals (all on one picture) |
+| Medium, 12 KB | Caught 50 / 50 | 40 clean, 10 weak signals |
+| Large, 40 KB | Caught 50 / 50, all strong | 30 clean, 15 weak, 5 strong |
+
+For the same message, our app changes about **41% fewer** colour values than plain LSB. The more is hidden, the easier any method is to detect: ours is much harder to catch, but not undetectable.
 
 Smooth areas (like a sky) can make the chi-square attack raise a false alarm even on a clean picture, so the lab always compares against the clean picture. RS analysis and the "last-bit layer" visual attack were tried too, but they are unreliable on these computer-generated pictures, so they are not shown.
