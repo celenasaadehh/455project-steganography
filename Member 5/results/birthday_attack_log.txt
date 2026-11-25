@@ -37,22 +37,27 @@ PART 3  Using the attack on our own steganography (no password)
           extract() after the swap:  'Send me all the exam answers now [ref UZVEOP1D]'
           -> swap ACCEPTED, no error
 
-        With a password (AES-256-GCM, 128-bit tag that depends on the key):
-          text carrier, one hidden character changed:  rejected
-          image carrier, one embedded value changed:    rejected
+        With a password (AES-256-GCM: the check depends on the key and cannot be recomputed):
+          text carrier, one encrypted character changed:   rejected by the password check
+          image carrier, one encrypted value changed:       rejected by the password check
+
+        Note: without a password the CRC-32 has no key and is stored with the message, so an attacker
+        does not even need a collision: they can compute a new checksum or simply hide a new message.
+        The collision shows that even a checksum value the receiver already trusts cannot prove which
+        message was hidden. With a password, what protects the message is the key, not the tag length.
 
 PART 4  What a longer check value buys
 
-Work for a 50% chance of a collision (this laptop: 5,635,862 checksums per second in Python)
+Work for a 50% chance of a collision (this laptop: 5,601,139 checksums per second in Python)
   check_value_bits  used_for                                    tries_for_50_percent  time_on_this_laptop  time_at_one_billion_per_second
   ----------------  ------------------------------------------  --------------------  -------------------  ------------------------------
   32                CRC-32: both carriers without a password    77,163                under a second       under a second                
   64                a 64-bit check value                        5,056,937,541         15 minutes           5 seconds                     
-  128               AES-GCM tag: both carriers with a password  2.17e+19              122,119 years        688 years                     
+  128               AES-GCM tag: both carriers with a password  2.17e+19              122,876 years        688 years                     
   256               SHA-256                                     4.01e+38              2.3e+24 years        1.3e+22 years                 
 
         Each extra bit of check value multiplies the work by 1.41; doubling the size squares it.
         The GCM tag also depends on the secret key, so an attacker cannot even compute it offline.
 
 Charts: birthday_tries_vs_bits.png and birthday_crc32_probability.png
-All tables and charts are in /Users/tatiana/Downloads/455project/Member 5/results
+All tables and charts are in the "results" folder.

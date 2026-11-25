@@ -22,9 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 from common import letter_paragraph  # noqa: E402
 
-stego = common.text_stega
-if stego is None:
-    raise unittest.SkipTest('The "Member 2" folder is not in the repository')
+stego = common.text_stega  # Member 2's module, imported by common.py
 
 HIDDEN = set(stego.SYMBOLS)
 CARRIER = ("Dear team, the weekly meeting is moved to Thursday afternoon in the main hall. " * 6).strip()
@@ -185,19 +183,26 @@ class TamperingTests(unittest.TestCase):
     def setUp(self):
         self.text = stego.encode_text(CARRIER, "do not change me")
         self.positions = [i for i, ch in enumerate(self.text) if ch in HIDDEN]
+        # The same checks in Arabic mode (1 bit per invisible character).
+        self.texts = {"English": self.text,
+                      "Arabic": stego.encode_text("مرحبا بكم جميعا في الاجتماع الأسبوعي", "do not change me")}
 
     def test_every_single_character_substitution_is_detected(self):
-        for position in self.positions:
-            for replacement in stego.SYMBOLS:
-                if replacement != self.text[position]:
-                    damaged = self.text[:position] + replacement + self.text[position + 1:]
-                    with self.assertRaises(ValueError):
-                        stego.decode_text(damaged)
+        for mode, text in self.texts.items():
+            # Arabic mode uses only 2 symbols, so swapping them is a real one-bit change.
+            symbols = stego.ARABIC_BIT_SYMBOLS if mode == "Arabic" else stego.SYMBOLS
+            for position in (i for i, ch in enumerate(text) if ch in HIDDEN):
+                for replacement in symbols:
+                    if replacement != text[position]:
+                        damaged = text[:position] + replacement + text[position + 1:]
+                        with self.subTest(mode=mode, position=position), self.assertRaises(ValueError):
+                            stego.decode_text(damaged)
 
     def test_every_single_character_deletion_is_detected(self):
-        for position in self.positions:
-            with self.assertRaises(ValueError):
-                stego.decode_text(self.text[:position] + self.text[position + 1:])
+        for mode, text in self.texts.items():
+            for position in (i for i, ch in enumerate(text) if ch in HIDDEN):
+                with self.subTest(mode=mode, position=position), self.assertRaises(ValueError):
+                    stego.decode_text(text[:position] + text[position + 1:])
 
     def test_cut_inside_the_hidden_block_is_rejected(self):
         for keep in (10, self.positions[0] + 9, self.positions[-1] - 3):

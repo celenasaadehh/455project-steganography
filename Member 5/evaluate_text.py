@@ -154,6 +154,7 @@ def overhead_chart(rows: list[dict]):
         lines = charts.line(axes, [row["secret_bytes"] for row in points],
                             [row["hidden_characters"] for row in points], colour, label)
         lines[0].set_linestyle(dash)
+        lines[0].set_marker("s" if dash == "--" else "o")  # square markers = with a password
     axes.set_xscale("log")
     axes.set_yscale("log")
     charts.axis_labels(axes, "Secret size (bytes)", "Invisible characters")
@@ -178,7 +179,7 @@ def main():
     common.print_table("Is the visible text unchanged?", visibility)
 
     print("\nChart:", overhead_chart(overhead).name)
-    print(f"\nAll tables are in {common.RESULTS}")
+    print('\nAll tables are in the "results" folder.')
 
 
 if __name__ == "__main__":

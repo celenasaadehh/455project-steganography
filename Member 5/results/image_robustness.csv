@@ -3,10 +3,19 @@ PNG,no change (the downloaded file),message recovered
 PNG,saved again as PNG,message recovered
 PNG,converted to BMP,message recovered
 PNG,alpha channel added,message recovered
-PNG,saved as JPEG (quality 95),rejected (DependencyError)
+PNG,saved as JPEG (quality 95),rejected (PayloadError)
 PNG,cropped by one column,rejected (PayloadError)
 PNG,resized to 50%,rejected (PayloadError)
 PNG,rotated 90 degrees,rejected (PayloadError)
 PNG,mirrored,rejected (PayloadError)
 PNG,brightness +1,rejected (PayloadError)
 PNG,converted to greyscale,rejected (PayloadError)
+JPEG,no change (the downloaded file),message recovered
+JPEG,saved again as JPEG (quality 95),message recovered
+JPEG,saved again as JPEG (quality 85),message recovered
+JPEG,saved again as JPEG (quality 75),message recovered
+JPEG,saved again as JPEG (quality 60),message recovered
+JPEG,saved again as JPEG (quality 40),message recovered
+JPEG,saved again as JPEG (quality 20),message recovered
+JPEG,resized to 75%,rejected (PayloadError)
+JPEG,converted to PNG,rejected (PayloadError)

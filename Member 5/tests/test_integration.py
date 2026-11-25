@@ -204,13 +204,18 @@ class WebsiteTests(unittest.TestCase):
         self.assertEqual(visitor.get("/api/messages").status_code, 401)
         self.assertEqual(self.send(visitor, carrier="text", cover="A cover.", message="x").status_code, 401)
 
-    def test_hidden_message_is_never_stored_by_the_website(self):
-        secret = "this exact sentence must not be stored"
-        sent = self.send(self.alice, carrier="text", cover="A harmless sentence.", message=secret, password="open sesame")
-        self.reveal(self.bob, sent.get_json()["message"]["id"], "open sesame")
+    def test_hidden_message_is_never_stored_as_plain_text(self):
+        # Checks the plain bytes only. An unlocked text message is still stored inside its stego
+        # text (as invisible characters), so anyone who can read the database can reveal it.
         import db
-        stored = db.DB.read_bytes()
-        self.assertNotIn(secret.encode("utf-8"), stored)
+        for password in ("open sesame", ""):
+            secret = f"this exact sentence must not be stored {bool(password)}"
+            with self.subTest(locked=bool(password)):
+                sent = self.send(self.alice, carrier="text", cover="A harmless sentence.", message=secret,
+                                 password=password)
+                revealed = self.reveal(self.bob, sent.get_json()["message"]["id"], password)
+                self.assertEqual(revealed.status_code, 200)
+                self.assertNotIn(secret.encode("utf-8"), db.DB.read_bytes())
 
     # ------------------------------------------- Member 4: History and Learn tabs
 
@@ -254,6 +259,22 @@ class WebsiteTests(unittest.TestCase):
         self.assertEqual(len(self.history(writer)), 1)
         self.assertEqual(self.history(outsider), [])
         self.assertEqual(self.website.app.test_client().get("/api/history").status_code, 401)
+
+    @unittest.expectedFailure
+    def test_outsider_cannot_learn_who_sent_a_message_from_history(self):
+        # Issue 2 (Member 4). Someone who is neither the sender nor the recipient tries to reveal a
+        # message by its number. The website correctly answers 404, but History still saves a failed
+        # "reveal" row in the outsider's own History, holding the real sender's e-mail address.
+        if not (common.MEMBER4 / "member4.py").exists():
+            self.skipTest("Member 4's folder is not in the repository")
+        sender = self.new_user("leak.sender@example.com", "Sara")
+        self.new_user("leak.recipient@example.com", "Rana")
+        outsider = self.new_user("leak.outsider@example.com", "Omar")
+        sent = self.send(sender, to="leak.recipient@example.com", carrier="text",
+                         cover="Just a short note.", message="private")
+        message_id = sent.get_json()["message"]["id"]
+        self.assertEqual(self.reveal(outsider, message_id).status_code, 404)
+        self.assertNotIn("leak.sender@example.com", str(self.history(outsider)))
 
     def test_learn_walkthrough_uses_the_real_algorithms(self):
         if not (common.MEMBER4 / "member4.py").exists():

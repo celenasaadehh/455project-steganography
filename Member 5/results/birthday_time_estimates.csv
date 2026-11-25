@@ -1,5 +1,5 @@
 check_value_bits,used_for,tries_for_50_percent,time_on_this_laptop,time_at_one_billion_per_second
 32,CRC-32: both carriers without a password,"77,163",under a second,under a second
 64,a 64-bit check value,"5,056,937,541",15 minutes,5 seconds
-128,AES-GCM tag: both carriers with a password,2.17e+19,"122,119 years",688 years
+128,AES-GCM tag: both carriers with a password,2.17e+19,"122,876 years",688 years
 256,SHA-256,4.01e+38,2.3e+24 years,1.3e+22 years

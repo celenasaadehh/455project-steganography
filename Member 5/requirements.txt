@@ -6,3 +6,6 @@ pillow-heif>=0.18,<3
 Flask>=3.0,<4
 # Charts written by the evaluation and birthday attack scripts
 matplotlib>=3.8,<4
+# Detection experiment (steganalysis.py): chi-square test and the sample photos
+scipy>=1.11,<2
+scikit-image>=0.22,<1

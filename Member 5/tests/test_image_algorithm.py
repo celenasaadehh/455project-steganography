@@ -424,15 +424,23 @@ class TamperingTests(ImageTestCase):
         self.assertGreater(outcomes["rejected"], 0)
 
     def test_damaged_locked_message_is_rejected(self):
+        # Same rule as the unlocked test above: undoing a change must be noticed, except a change
+        # that only set one of the unused padding bits at the end of the header or of the message.
         locked = stego.embed(self.cover, self.message, password="tamper")
         before, after = to_array(self.cover), to_array(locked.image)
         positions = np.argwhere(before != after)
         rng = np.random.default_rng(7)
+        unnoticed = 0
         for y, x, channel in positions[rng.choice(len(positions), size=8, replace=False)]:
             damaged = after.copy()
             damaged[y, x, channel] = before[y, x, channel]
-            with self.assertRaises(stego.StegoError):
-                stego.extract(to_bytes(Image.fromarray(damaged.astype(np.uint8))), password="tamper")
+            try:
+                recovered = stego.extract(to_bytes(Image.fromarray(damaged.astype(np.uint8))), password="tamper")
+            except stego.StegoError:
+                continue
+            self.assertEqual(recovered, self.message)
+            unnoticed += 1
+        self.assertLessEqual(unnoticed, 2)
 
 
 @unittest.skipUnless(JPEG_READY, NEEDS_JPEG)

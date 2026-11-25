@@ -1,15 +1,18 @@
 payload_percent_of_capacity,method,covers,mean_psnr_db,lowest_psnr_db,mean_ssim,mean_changed_percent,largest_change,mean_bits_per_change
-1,texture-adaptive matrix embedding (Member 1),14,79.08,76.66,0.999997,0.0838,1,3.53
+1,texture-adaptive matrix embedding (Member 1),14,79.09,76.85,0.999997,0.0835,1,3.54
 1,sequential LSB replacement (baseline),14,76.59,74.35,0.999992,0.1505,1,1.99
-5,texture-adaptive matrix embedding (Member 1),14,72.91,72.19,0.999988,0.3339,1,3.45
+5,texture-adaptive matrix embedding (Member 1),14,72.92,72.34,0.999988,0.3327,1,3.46
 5,sequential LSB replacement (baseline),14,70.54,69.86,0.999969,0.5758,1,2.0
-10,texture-adaptive matrix embedding (Member 1),14,70.05,69.68,0.999977,0.6434,1,3.45
+10,texture-adaptive matrix embedding (Member 1),14,70.05,69.63,0.999977,0.6433,1,3.45
 10,sequential LSB replacement (baseline),14,67.69,67.37,0.999938,1.1066,1,2.01
-25,texture-adaptive matrix embedding (Member 1),14,66.15,65.98,0.999943,1.577,1,3.44
+10,JPEG DCT coefficients (Member 1),14,38.0,32.73,0.907266,49.7523,36,
+25,texture-adaptive matrix embedding (Member 1),14,66.16,66.04,0.999943,1.5754,1,3.44
 25,sequential LSB replacement (baseline),14,63.81,63.66,0.999844,2.7087,1,2.0
-50,texture-adaptive matrix embedding (Member 1),14,63.17,63.13,0.999885,3.13,1,3.44
+50,texture-adaptive matrix embedding (Member 1),14,63.17,63.13,0.999884,3.1309,1,3.44
 50,sequential LSB replacement (baseline),14,60.82,60.74,0.999684,5.3825,1,2.0
-75,texture-adaptive matrix embedding (Member 1),14,61.42,61.39,0.999824,4.6851,1,3.43
+50,JPEG DCT coefficients (Member 1),14,33.86,31.96,0.831575,81.9018,40,
+75,texture-adaptive matrix embedding (Member 1),14,61.43,61.4,0.999823,4.6827,1,3.44
 75,sequential LSB replacement (baseline),14,59.08,59.06,0.999532,8.0409,1,2.0
-100,texture-adaptive matrix embedding (Member 1),14,60.18,60.17,0.99976,6.2419,1,3.43
+100,texture-adaptive matrix embedding (Member 1),14,60.18,60.15,0.999758,6.2442,1,3.43
 100,sequential LSB replacement (baseline),14,57.84,57.81,0.999386,10.7051,1,2.0
+100,JPEG DCT coefficients (Member 1),14,31.7,31.35,0.753007,88.798,39,

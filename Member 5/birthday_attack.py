@@ -17,7 +17,8 @@ use AES-256-GCM, whose authentication tag has 128 bits and depends on the key.
   Part 3  Use the attack on the project: prepare a harmless and a harmful
           message with the same CRC-32, hide the harmless one with the team's
           code, swap in the harmful one, and check that reveal() and extract()
-          accept it. Then try the same change on a password-protected message.
+          accept it. Then change one encrypted value of a password-protected
+          message and check that the password check rejects it.
   Part 4  Estimate the work needed for larger check values.
 
 Run from the "Member 5" folder:
@@ -293,9 +294,13 @@ def part_3(say: Report, rng: random.Random) -> dict:
     say(f"          extract() after the swap:  {extracted!r}")
     say(f"          -> swap {'ACCEPTED, no error' if outcome['image_swap_accepted'] else 'rejected'}")
 
-    # The same change on password-protected messages
+    # Password-protected messages: change one encrypted value (never the header)
     say("")
-    say("        With a password (AES-256-GCM, 128-bit tag that depends on the key):")
+    # With a password the encrypted part is protected by an AES-GCM tag that depends on the key.
+    # These checks change one value of the ENCRYPTED part, never the public header (protected by its
+    # own CRC-32 in the image carrier, and by format checks plus the AES-GCM associated data in the
+    # text carrier), so a rejection here comes from the password-based check.
+    say("        With a password (AES-256-GCM: the check depends on the key and cannot be recomputed):")
     locked_text = text_stego.hide(cover_text, harmless, "course password")
     hidden = [i for i, ch in enumerate(locked_text) if ch in text_stego.SYMBOLS]
     position = hidden[4 * 30]                         # first character of the encrypted message (after TL, salt, nonce)
@@ -305,20 +310,29 @@ def part_3(say: Report, rng: random.Random) -> dict:
         outcome["locked_text_change_rejected"] = False
     except text_stego.TextPasswordError:
         outcome["locked_text_change_rejected"] = True
-    say(f"          text carrier, one hidden character changed:  "
-        f"{'rejected' if outcome['locked_text_change_rejected'] else 'ACCEPTED'}")
+    say(f"          text carrier, one encrypted character changed:   "
+        f"{'rejected by the password check' if outcome['locked_text_change_rejected'] else 'ACCEPTED'}")
 
     locked_image = image_stego.embed(cover_image, harmless, password="course password").image
     before, after = to_array(cover_image), to_array(locked_image)
-    y, x, channel = np.argwhere(before != after)[-1]
-    after[y, x, channel] = before[y, x, channel]
+    picture, _, _ = image_stego._load(locked_image)
+    header = set(image_stego._Spatial(picture)._indices(image_stego.HEADER_BYTES, image_stego._HSEED,
+                                                        header=True).ravel().tolist())
+    changed = [int(i) for i in np.flatnonzero(before.reshape(-1) != after.reshape(-1)) if int(i) not in header]
+    flat = after.reshape(-1)
+    flat[changed[len(changed) // 2]] = before.reshape(-1)[changed[len(changed) // 2]]
     try:
         image_stego.extract(to_bytes(common.Image.fromarray(after.astype(np.uint8))), password="course password")
         outcome["locked_image_change_rejected"] = False
-    except image_stego.StegoError:
+    except image_stego.PasswordError:
         outcome["locked_image_change_rejected"] = True
-    say(f"          image carrier, one embedded value changed:    "
-        f"{'rejected' if outcome['locked_image_change_rejected'] else 'ACCEPTED'}")
+    say(f"          image carrier, one encrypted value changed:       "
+        f"{'rejected by the password check' if outcome['locked_image_change_rejected'] else 'ACCEPTED'}")
+    say("")
+    say("        Note: without a password the CRC-32 has no key and is stored with the message, so an attacker")
+    say("        does not even need a collision: they can compute a new checksum or simply hide a new message.")
+    say("        The collision shows that even a checksum value the receiver already trusts cannot prove which")
+    say("        message was hidden. With a password, what protects the message is the key, not the tag length.")
     return outcome
 
 
@@ -415,7 +429,7 @@ def main():
     common.write_table("birthday_time_estimates", estimates)
     say("")
     say(f"Charts: {tries_chart(rows).name} and {probability_chart(ordered).name}")
-    say(f"All tables and charts are in {common.RESULTS}")
+    say('All tables and charts are in the "results" folder.')
     say.save("birthday_attack_log.txt")
 
 

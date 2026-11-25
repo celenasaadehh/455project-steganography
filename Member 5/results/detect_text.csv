@@ -1,0 +1,18 @@
+text,kind,zero_width_characters,flagged
+English paragraph,clean,0,False
+Arabic paragraph,clean,0,False
+French with accents,clean,0,False
+text with three family emoji,clean,6,False
+Persian sentence,clean,2,False
+"English cover, 1-byte secret",stego,36,True
+"English cover, 1-byte secret, password",stego,188,True
+"Arabic cover, 1-byte secret",stego,72,True
+"Arabic cover, 1-byte secret, password",stego,376,True
+"English cover, 5-byte secret",stego,52,True
+"English cover, 5-byte secret, password",stego,204,True
+"Arabic cover, 5-byte secret",stego,104,True
+"Arabic cover, 5-byte secret, password",stego,408,True
+"English cover, 50-byte secret",stego,232,True
+"English cover, 50-byte secret, password",stego,384,True
+"Arabic cover, 50-byte secret",stego,464,True
+"Arabic cover, 50-byte secret, password",stego,768,True

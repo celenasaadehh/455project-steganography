@@ -1,0 +1,46 @@
+pictures,bits_per_colour_value,method,detector,auc,caught_at_5_percent_false_alarms,mean_estimate_clean,mean_estimate_stego
+website gallery,0.01,Team's method,Chi-square,0.51,0.1,,
+website gallery,0.01,Team's method,RS analysis,0.54,0.0,0.6251,0.6276
+website gallery,0.01,Team's method,SPA,0.56,0.1,0.331,0.3342
+website gallery,0.01,Sequential LSB,Chi-square,0.89,0.3,,
+website gallery,0.01,Sequential LSB,RS analysis,0.53,0.0,0.6251,0.6288
+website gallery,0.01,Sequential LSB,SPA,0.56,0.1,0.331,0.3351
+website gallery,0.01,Random LSB,Chi-square,0.54,0.0,,
+website gallery,0.01,Random LSB,RS analysis,0.52,0.0,0.6251,0.6288
+website gallery,0.01,Random LSB,SPA,0.56,0.1,0.331,0.3372
+website gallery,0.02,Team's method,Chi-square,0.55,0.1,,
+website gallery,0.02,Team's method,RS analysis,0.54,0.0,0.6251,0.6303
+website gallery,0.02,Team's method,SPA,0.56,0.1,0.331,0.3385
+website gallery,0.02,Sequential LSB,Chi-square,0.94,0.6,,
+website gallery,0.02,Sequential LSB,RS analysis,0.54,0.0,0.6251,0.6312
+website gallery,0.02,Sequential LSB,SPA,0.55,0.1,0.331,0.3391
+website gallery,0.02,Random LSB,Chi-square,0.52,0.1,,
+website gallery,0.02,Random LSB,RS analysis,0.53,0.0,0.6251,0.6302
+website gallery,0.02,Random LSB,SPA,0.58,0.1,0.331,0.3438
+website gallery,0.05,Team's method,Chi-square,0.55,0.1,,
+website gallery,0.05,Team's method,RS analysis,0.54,0.0,0.6251,0.6402
+website gallery,0.05,Team's method,SPA,0.58,0.1,0.331,0.3516
+website gallery,0.05,Sequential LSB,Chi-square,0.98,0.8,,
+website gallery,0.05,Sequential LSB,RS analysis,0.54,0.0,0.6251,0.6484
+website gallery,0.05,Sequential LSB,SPA,0.59,0.2,0.331,0.3549
+website gallery,0.05,Random LSB,Chi-square,0.53,0.0,,
+website gallery,0.05,Random LSB,RS analysis,0.55,0.0,0.6251,0.6453
+website gallery,0.05,Random LSB,SPA,0.61,0.2,0.331,0.3647
+website gallery,0.1,Team's method,Chi-square,0.55,0.1,,
+website gallery,0.1,Team's method,RS analysis,0.56,0.0,0.6251,0.6532
+website gallery,0.1,Team's method,SPA,0.63,0.2,0.331,0.3718
+website gallery,0.1,Sequential LSB,Chi-square,1.0,1.0,,
+website gallery,0.1,Sequential LSB,RS analysis,0.54,0.0,0.6251,0.6638
+website gallery,0.1,Sequential LSB,SPA,0.62,0.2,0.331,0.378
+website gallery,0.1,Random LSB,Chi-square,0.56,0.0,,
+website gallery,0.1,Random LSB,RS analysis,0.56,0.0,0.6251,0.6613
+website gallery,0.1,Random LSB,SPA,0.66,0.2,0.331,0.4004
+website gallery,0.2,Team's method,Chi-square,0.58,0.2,,
+website gallery,0.2,Team's method,RS analysis,0.55,0.0,0.6251,0.6765
+website gallery,0.2,Team's method,SPA,0.67,0.2,0.331,0.411
+website gallery,0.2,Sequential LSB,Chi-square,1.0,1.0,,
+website gallery,0.2,Sequential LSB,RS analysis,0.58,0.0,0.6251,0.7117
+website gallery,0.2,Sequential LSB,SPA,0.7,0.2,0.331,0.4321
+website gallery,0.2,Random LSB,Chi-square,0.61,0.1,,
+website gallery,0.2,Random LSB,RS analysis,0.58,0.0,0.6251,0.698
+website gallery,0.2,Random LSB,SPA,0.73,0.3,0.331,0.4643

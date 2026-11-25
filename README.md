@@ -96,7 +96,7 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 ├── Member 2/   Text steganography (spread zero-width algorithm, research)
 ├── Member 3/   The Stego Mail website (Flask) + its text carrier
 ├── Member 4/   Learn tab, step-by-step walkthrough, History tab, research
-└── Member 5/   Automated tests, capacity and distortion evaluation, birthday attack experiment
+└── Member 5/   Automated tests, capacity and distortion evaluation, detection experiment, birthday attack experiment
 ```
 
 | Member | Responsibility | Main files |
@@ -105,7 +105,7 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 | **2: Text steganography** | Zero-width text algorithm (English and Arabic, optional password) used by the website, and research | `Member 2/text_stega.py`, `Member 2/Research.md` |
 | **3: Main web application & integration** | Flask website: accounts, compose, inbox, gallery, database; connects Member 1 and Member 2 | `Member 3/app.py`, `Member 3/templates/`, `Member 3/static/` |
 | **4: Educational & convenience features** | Learn tab, step-by-step visualisation of the real algorithms, History tab, research on similar applications | `Member 4/` |
-| **5: Testing, evaluation & birthday attack** | Automated tests, distortion and capacity measurements, birthday attack experiment | `Member 5/tests/`, `Member 5/evaluate_images.py`, `Member 5/evaluate_text.py`, `Member 5/birthday_attack.py`, `Member 5/results/` |
+| **5: Testing, evaluation & birthday attack** | Automated tests, distortion and capacity measurements, detection experiment (steganalysis), birthday attack experiment | `Member 5/tests/`, `Member 5/evaluate_images.py`, `Member 5/evaluate_text.py`, `Member 5/steganalysis.py`, `Member 5/birthday_attack.py`, `Member 5/results/` |
 
 Each member folder has its own README with more detail. Member 1's `support/TECHNICAL_GUIDE.md` documents the image algorithms in depth, and `Member 4/docs/research-similar-apps.md` compares Stego Mail with existing tools (OpenStego, Steghide, StegOnline, StegCloak, SNOW, Steganography Studio).
 
@@ -145,9 +145,9 @@ From the repository root:
 ```sh
 python -m unittest discover -s "Member 1/support/tests" -v   # image algorithms (JPEG/HEIC tests need the native build)
 python -m unittest discover -s "Member 4/tests" -v           # Learn traces + History
-python -m unittest discover -s "Member 5/tests" -v           # 150 tests: all algorithms, website, History, birthday maths
+python -m unittest discover -s "Member 5/tests" -v           # 164 tests: all algorithms, website, History, detection, birthday maths
 ```
-Member 4's tests also check that every group of 7 values changes at most one value by exactly 1, and that the secret message is never written to the history. Member 5's folder also measures capacity and image distortion, compares the two text methods, and runs the birthday attack experiment on the CRC-32 checksum; results and charts are in `Member 5/results/` and summarised in `Member 5/README.md`.
+Member 4's tests also check that every group of 7 values changes at most one value by exactly 1, and that the secret message is never written to the history. Member 5's folder also measures capacity and image distortion, measures the text carrier's overhead and robustness, tests whether hidden messages can be detected (steganalysis), and runs the birthday attack experiment on the CRC-32 checksum; results and charts are in `Member 5/results/` and summarised in `Member 5/README.md`.
 
 ---
 

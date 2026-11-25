@@ -5,7 +5,8 @@ What this script measures:
   2. Distortion: how much the picture changes (MSE, PSNR, SSIM, share of values changed)
                  for messages from 1% to 100% of the capacity, on 14 cover pictures,
                  compared with the classic "sequential LSB" method at the same message size.
-  3. Robustness: which edits of the stego picture keep the message readable.
+  3. Robustness: which edits of the stego picture keep the message readable, and
+                 (JPEG) low-quality re-saving on every cover.
   4. Speed:      time to hide and to extract, with and without a password.
 
 Run from the "Member 5" folder:
@@ -167,8 +168,12 @@ def jpeg_distortion_table(covers: dict[str, bytes]) -> list[dict]:
             message = rng.integers(0, 256, size, dtype=np.uint8).tobytes()
             hidden_bits = (stego.HEADER_BYTES + size + 4) * 8
             result = stego.embed(jpeg_cover, message, output_format="JPEG")
+            measured = distortion(original, pixels(result.image), hidden_bits)
+            # One changed DCT coefficient alters all 64 pixels of its block, so "bits per changed
+            # pixel value" does not describe this method and is left empty.
+            measured["bits_per_change"] = ""
             rows.append({"cover": name, "payload_percent_of_capacity": round(share * 100), "payload_bytes": size,
-                         "method": JPEG, **distortion(original, pixels(result.image), hidden_bits)})
+                         "method": JPEG, **measured})
     return rows
 
 
@@ -189,7 +194,8 @@ def summarise(rows: list[dict]) -> list[dict]:
                 "mean_ssim": round(statistics.mean(r["ssim"] for r in group), 6),
                 "mean_changed_percent": round(statistics.mean(r["changed_percent"] for r in group), 4),
                 "largest_change": max(r["largest_change"] for r in group),
-                "mean_bits_per_change": round(statistics.mean(r["bits_per_change"] for r in group), 2),
+                "mean_bits_per_change": (round(statistics.mean(r["bits_per_change"] for r in group), 2)
+                                         if all(r["bits_per_change"] != "" for r in group) else ""),
             })
     return summary
 
@@ -226,13 +232,31 @@ def robustness_table() -> list[dict]:
 
     if common.jpeg_ready():
         jpeg_cover = to_bytes(common.gradient_image(512, 384), "JPEG", quality=95, subsampling=0)
-        jpeg = to_image(stego.embed(jpeg_cover, message, output_format="JPEG").image)
-        jpeg_edits = {"no change (the downloaded file)": to_bytes(jpeg, "JPEG", quality="keep")}
+        downloaded = stego.embed(jpeg_cover, message, output_format="JPEG").image
+        jpeg = to_image(downloaded)
+        jpeg_edits = {"no change (the downloaded file)": downloaded}
         for quality in (95, 85, 75, 60, 40, 20):
             jpeg_edits[f"saved again as JPEG (quality {quality})"] = to_bytes(jpeg, "JPEG", quality=quality, subsampling=2)
         jpeg_edits["resized to 75%"] = to_bytes(jpeg.resize((jpeg.width * 3 // 4, jpeg.height * 3 // 4)), "JPEG", quality=90)
         jpeg_edits["converted to PNG"] = to_bytes(jpeg)
         rows += [{"stego_format": "JPEG", "edit": name, "result": outcome(data, message)} for name, data in jpeg_edits.items()]
+    return rows
+
+
+def jpeg_resave_by_cover(covers: dict[str, bytes]) -> list[dict]:
+    """Low-quality JPEG re-saving on every cover. Only runs when Member 1's JPEG helper is built."""
+    message = b"robustness test message"
+    rows = []
+    for name, cover in covers.items():
+        jpeg_cover = to_bytes(to_image(cover).convert("RGB"), "JPEG", quality=95, subsampling=0)
+        if stego.capacity(jpeg_cover, "JPEG", encrypted=False).max_message_bytes < len(message):
+            continue
+        jpeg = to_image(stego.embed(jpeg_cover, message, output_format="JPEG").image)
+        row = {"cover": name}
+        for quality in (40, 30, 20):
+            row[f"saved_again_at_quality_{quality}"] = outcome(
+                to_bytes(jpeg, "JPEG", quality=quality, subsampling=2), message)
+        rows.append(row)
     return rows
 
 
@@ -243,7 +267,7 @@ def timing_table(cover: bytes) -> list[dict]:
     rows = []
     for label, password in (("no password", None), ("with password", "timing password")):
         hide, show = [], []
-        for _ in range(5):
+        for _ in range(11):
             start = time.perf_counter()
             result = stego.embed(cover, message, password=password)
             middle = time.perf_counter()
@@ -322,14 +346,18 @@ def main():
     robustness = robustness_table()
     common.write_table("image_robustness", robustness)
     common.print_table("Which edits keep the hidden message readable", robustness)
+    if common.jpeg_ready():
+        resave = jpeg_resave_by_cover(covers)
+        common.write_table("image_jpeg_resave_by_cover", resave)
+        common.print_table("Stego JPEG saved again at low quality, on every cover", resave)
 
     gallery = common.gallery_covers()
     speed = timing_table(next(iter(gallery.values())) if gallery else to_bytes(common.gradient_image(960, 720)))
     common.write_table("image_timing", speed)
-    common.print_table("Speed for a 100-byte message in a 960 x 720 picture (median of 5 runs)", speed)
+    common.print_table("Speed for a 100-byte message in a 960 x 720 picture (median of 11 runs)", speed)
 
     print("\nCharts:", quality_chart(summary).name, "and", capacity_chart(sizes).name)
-    print(f"All tables and charts are in {common.RESULTS}")
+    print('All tables and charts are in the "results" folder.')
 
 
 if __name__ == "__main__":

@@ -295,5 +295,28 @@ class CoverJoinerTests(unittest.TestCase):
                 stego.hide(COVER, bad)
 
 
+class KnownIssuesTests(unittest.TestCase):
+    """Behaviour the text carrier should have but does not have yet (README, "Issues found")."""
+
+    @unittest.expectedFailure
+    def test_cover_with_an_invisible_character_next_to_the_hiding_spot(self):
+        # Issue 1. If one of the cover's own zero-width characters sits right before the space where
+        # the hidden block goes, or at the end of a cover with no usable space, it joins the hidden
+        # block (a hidden run may contain spaces). hide() then stops with a bare AssertionError instead
+        # of a TextStegoError, and the website only catches TextStegoError, so the user gets a server error.
+        problems = []
+        for cover in ("Hello \u200d there", "abc\u200b", "a \u200b"):
+            try:
+                text = stego.hide(cover, "Hi")
+            except stego.TextStegoError:
+                continue  # a clear error message would be acceptable
+            except Exception as error:  # noqa: BLE001 - any other error type is the bug
+                problems.append(f"{cover!r}: {type(error).__name__}")
+                continue
+            if stego.reveal(text) != "Hi" or stego.strip_hidden(text) != cover:
+                problems.append(f"{cover!r}: the message or the cover changed")
+        self.assertEqual(problems, [])
+
+
 if __name__ == "__main__":
     unittest.main()
