@@ -1,10 +1,10 @@
-# Stego Mail: Hiding Secret Messages in Images and Text
+# Stego Studio: Hiding Secret Messages in Images and Text
 
 **EECE 455/632 · Fall 2026 · Project 17: Steganography (Message and Image)**
 
-Stego Mail is an e-mail style website for sending secret messages **hidden inside ordinary pictures or sentences**. To anyone else, the message looks like a normal photo or a normal line of text. Only the recipient knows to look inside, and with a password only they can read it.
+Stego Studio is a website for hiding secret messages **inside ordinary pictures or sentences**. You hide a message, download the picture (or copy the text), and later upload it to reveal the message. To anyone else it looks like a normal photo or a normal line of text, and without the password nobody can read it.
 
-The app also **teaches how it works**: a Learn tab walks through every step of the hiding process on a real picture or sentence, using the same code as the Send button.
+The app also **teaches how it works**: a Learn tab walks through every step of the hiding process on a real picture or sentence, using the same code as the Hide button.
 
 ---
 
@@ -29,7 +29,7 @@ The app also **teaches how it works**: a Learn tab walks through every step of t
 | What an observer sees | Scrambled data, so they know a secret exists | A normal picture or sentence |
 | Broken when | The key or algorithm is broken | Someone detects hidden data (*steganalysis*) |
 
-Stego Mail uses **both**: it hides the message and, if the user sets a password, also encrypts it.
+Stego Studio uses **both**: it hides the message and encrypts it with the user's password.
 
 ---
 
@@ -38,8 +38,8 @@ Stego Mail uses **both**: it hides the message and, if the user sets a password,
 | Feature | Description |
 |---|---|
 | **Accounts** | Sign up with e-mail and password. E-mail verification by 6-digit code is built in (off by default). |
-| **Compose** | Choose a recipient, a picture (built-in gallery, your own, or an upload in PNG, JPEG, BMP or HEIC) **or** a cover sentence, type the secret, optionally lock it with a password, and send. |
-| **Inbox / Sent** | Received pictures look ordinary. The hidden message is revealed on open, or after entering the password if it is locked. Search, delete, download, unread badges. |
+| **Hide** | Upload a picture (PNG, JPEG, BMP or HEIC) or pick one from the gallery, **or** write a cover sentence; type the secret and a password. The stego picture downloads straight away; stego text can be copied or saved as `.txt`. |
+| **Reveal** | Upload the stego picture or paste the stego text, enter the password, and the message appears. An X-ray view shows the hidden-bit layer of a picture. |
 | **Gallery** | 10 built-in cover pictures plus the user's own saved pictures. |
 | **Learn** | Explains how the app hides messages, with an interactive **step-by-step walkthrough** on a real picture or sentence, plus a comparison with other methods and apps. |
 | **History** | A log of every hide and reveal (including failures such as a wrong password), with filters, delete and CSV export. The secret itself is never stored. |
@@ -57,22 +57,22 @@ Every pixel has three colour values (red, green, blue), each from 0 to 255. Chan
 3. **Random order.** Groups are visited in a pseudo-random order derived from a random 16-byte *salt* (and from the password, if any), so changes are scattered over the whole image.
 4. **Header.** A 43-byte header (tag `ILAB`, version, method, lock flag, length, salt, nonce, CRC) is stored first in a fixed public order, so the receiver knows where and how much to read.
 
-The app extracts the message from the finished picture before sending, to verify it.
+The app extracts the message from the finished picture before handing it over, to verify it.
 
 ### 3.2 Hiding in JPEG pictures
 JPEG compression would destroy last-bit changes, so JPEG uses a **separate method**: it slightly moves the image's compressed frequency (DCT) coefficients using *quantisation index modulation* (QIM), with repetition and error correction. It survived re-saving down to JPEG quality 30 in our tests, but holds much less data (a few hundred bytes).
 
 ### 3.3 Hiding in text
-Unicode includes **invisible zero-width characters**. We use four of them, so each one carries **2 bits**:
+Unicode includes **invisible zero-width characters**. Member 2's `text_stega.py` uses four of them in English text, so each one carries **2 bits**:
 
 | Bits | Character |
 |---|---|
 | `00` | U+200B Zero Width Space |
 | `01` | U+200C Zero Width Non-Joiner |
-| `10` | U+200D Zero Width Joiner |
-| `11` | U+2060 Word Joiner |
+| `10` | U+2060 Word Joiner |
+| `11` | U+2063 Invisible Separator |
 
-The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or encryption data) is turned into these characters and inserted after the first word of the cover sentence. The sentence looks exactly the same, but it becomes longer.
+In Arabic text only U+200B (`0`) and U+2060 (`1`) are used, **1 bit** each, so the joined Arabic letters are never disturbed. The message plus a small packet header (tag `TS` with its length and a CRC-32 check, or tag `TL` with salt, nonce and the AES-GCM tag when locked) becomes one run of these characters, inserted at the first safe space of the cover sentence. The sentence looks exactly the same, but it becomes longer. Texts made by the website's first format (tag `ZW`, with U+200D) can still be revealed.
 
 ### 3.4 Password lock (pictures and text)
 - The password and salt go through **scrypt**, a deliberately slow function, to make a 256-bit key.
@@ -83,8 +83,8 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 | Carrier | Holds | Picture quality |
 |---|---|---|
 | PNG / BMP, 960×720 picture | About 55 KB | PSNR usually well above 40 dB (invisible to the eye) |
-| JPEG | About 190–460 bytes | Changes can be more visible |
-| Text | Up to 10,000 bytes | Text looks identical; each byte adds 4 invisible characters |
+| JPEG, 960×720 picture | About 1.3 KB (1,281 bytes) | Changes can be more visible |
+| Text | Up to 65,535 bytes | Text looks identical; each byte adds 4 invisible characters (8 in Arabic text) |
 
 ---
 
@@ -93,8 +93,8 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 ```
 455project-steganography/
 ├── Member 1/   Image steganography (PNG, BMP, JPEG)
-├── Member 2/   Text steganography (spread zero-width algorithm, research)
-├── Member 3/   The Stego Mail website (Flask) + its text carrier
+├── Member 2/   Text steganography (zero-width algorithm used by the website, research)
+├── Member 3/   The Stego Studio website (Flask)
 ├── Member 4/   Learn tab, step-by-step walkthrough, History tab, research
 └── Member 5/   Automated tests, capacity and distortion evaluation, detection experiment, birthday attack experiment
 ```
@@ -103,11 +103,11 @@ The message (plus a small header: tag `ZW`, version, lock flag, and a CRC or enc
 |---|---|---|
 | **1: Image steganography** | Image algorithms: texture-adaptive matrix embedding (PNG/BMP), JPEG DCT method, capacity, quality measurement, tests | `Member 1/image_stego.py`, `Member 1/support/` |
 | **2: Text steganography** | Zero-width text algorithm (English and Arabic, optional password) used by the website, and research | `Member 2/text_stega.py`, `Member 2/Research.md` |
-| **3: Main web application & integration** | Flask website: accounts, compose, inbox, gallery, database; connects Member 1 and Member 2 | `Member 3/app.py`, `Member 3/templates/`, `Member 3/static/` |
+| **3: Main web application & integration** | Flask website: accounts, Hide and Reveal, gallery, database; connects Member 1 and Member 2 | `Member 3/app.py`, `Member 3/templates/`, `Member 3/static/` |
 | **4: Educational & convenience features** | Learn tab, step-by-step visualisation of the real algorithms, History tab, research on similar applications | `Member 4/` |
 | **5: Testing, evaluation & birthday attack** | Automated tests, distortion and capacity measurements, detection experiment (steganalysis), birthday attack experiment | `Member 5/tests/`, `Member 5/evaluate_images.py`, `Member 5/evaluate_text.py`, `Member 5/steganalysis.py`, `Member 5/birthday_attack.py`, `Member 5/results/` |
 
-Each member folder has its own README with more detail. Member 1's `support/TECHNICAL_GUIDE.md` documents the image algorithms in depth, and `Member 4/docs/research-similar-apps.md` compares Stego Mail with existing tools (OpenStego, Steghide, StegOnline, StegCloak, SNOW, Steganography Studio).
+Each member folder has its own README with more detail. Member 1's `support/TECHNICAL_GUIDE.md` documents the image algorithms in depth, and `Member 4/docs/research-similar-apps.md` compares Stego Studio with existing tools (OpenStego, Steghide, StegOnline, StegCloak, SNOW, Steganography Studio).
 
 **Technologies:** Python 3.11, Flask, SQLite, NumPy, Pillow, `cryptography` (scrypt, AES-GCM), HTML/CSS/JavaScript.
 
@@ -131,30 +131,30 @@ python3 -m venv .venv
 .venv/bin/python app.py
 ```
 
-Then open **http://127.0.0.1:5000**. Create two accounts (use a private window for the second) to send messages between them.
+Then open **http://127.0.0.1:5000**, create an account, hide a message, and open the downloaded picture in **Reveal**.
 
 **Notes**
 - **JPEG** output needs Member 1's one-time native build (see `Member 1/support/TECHNICAL_GUIDE.md`). PNG, BMP and text work without it.
 - **E-mail verification** is off by default. See `Member 3/README.md` to turn it on.
-- Runtime data (database, sent files) is created in `Member 3/data/`, which is not committed.
+- Runtime data (accounts database, own gallery pictures, profile pictures) is created in `Member 3/data/`, which is not committed.
 
 ---
 
 ## 6. Testing
 From the repository root:
 ```sh
-python -m unittest discover -s "Member 1/support/tests" -v   # image algorithms (JPEG/HEIC tests need the native build)
+PYTHONPATH="Member 1" python -m unittest discover -s "Member 1/support/tests" -v   # image algorithms (JPEG/HEIC tests need the native build)
 python -m unittest discover -s "Member 4/tests" -v           # Learn traces + History
-python -m unittest discover -s "Member 5/tests" -v           # 164 tests: all algorithms, website, History, detection, birthday maths
+python -m unittest discover -s "Member 5/tests" -v           # 166 tests: all algorithms, website, History, detection, birthday maths
 ```
 Member 4's tests also check that every group of 7 values changes at most one value by exactly 1, and that the secret message is never written to the history. Member 5's folder also measures capacity and image distortion, measures the text carrier's overhead and robustness, tests whether hidden messages can be detected (steganalysis), and runs the birthday attack experiment on the CRC-32 checksum; results and charts are in `Member 5/results/` and summarised in `Member 5/README.md`.
 
 ---
 
 ## 7. Security and privacy
-- The server stores **only the carrier** (stego picture or stego text). The hidden message is extracted only when the recipient presses Reveal, so a locked message can't be read from the database without its password.
+- The server stores **nothing that is hidden or revealed**: Hide builds the stego picture or text in memory and returns it, and Reveal reads the upload and forgets it.
 - The History tab stores **only the length** of each message, never its content.
-- Unlocked messages are *hidden but not secret*: anyone with the app could reveal them. Use a password for real secrecy, and share it another way (e.g. by phone).
+- Every message is locked with a password (AES-256-GCM). Share the password another way, e.g. by phone.
 
 ---
 

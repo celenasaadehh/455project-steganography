@@ -15,7 +15,8 @@ Detectors (all look only at the picture, without the password or the original):
   Sample pair        Dumitrescu, Wu and Wang (2003). Estimates the same share from
   analysis (SPA)     statistics of neighbouring pixel pairs. Usually the most accurate.
 
-Hiding methods compared, at the same message sizes (bits per colour value):
+Hiding methods compared, at the same message sizes (bits per colour value; a black-and-white
+tile counts one value per pixel, because the team's code keeps such pictures grey):
   Team's method      Member 1's image_stego.embed() (texture-adaptive matrix embedding, PNG).
   Sequential LSB     The textbook method: last bits overwritten from the top-left corner.
   Random LSB         Last bits overwritten at random positions spread over the picture.
@@ -166,8 +167,20 @@ def scores(pixels: np.ndarray) -> dict[str, float]:
 
 # ================================================================ hiding methods
 
+def is_grey(pixels: np.ndarray) -> bool:
+    """A black-and-white tile: red, green and blue are equal everywhere."""
+    return bool(np.array_equal(pixels[:, :, 0], pixels[:, :, 1]) and np.array_equal(pixels[:, :, 1], pixels[:, :, 2]))
+
+
+def _values(pixels: np.ndarray) -> np.ndarray:
+    """The values a message can use: one per pixel in a grey tile (as the team's code does since
+    issue 5 was fixed), three per pixel otherwise. The LSB methods use the same rule, so the
+    comparison stays fair and they do not add colour to a grey tile either."""
+    return pixels[:, :, 0] if is_grey(pixels) else pixels
+
+
 def message_bytes(pixels: np.ndarray, rate: float) -> int:
-    return int(rate * pixels.size / 8)
+    return int(rate * _values(pixels).size / 8)
 
 
 def sequential_lsb(pixels: np.ndarray, bits: int, rng: np.random.Generator) -> np.ndarray:
@@ -194,7 +207,9 @@ def hide(method: str, pixels: np.ndarray, rate: float, rng: np.random.Generator)
     if method == TEAM:
         return team_method(pixels, size, rng)
     bits = size * 8
-    return sequential_lsb(pixels, bits, rng) if method == SEQUENTIAL else random_lsb(pixels, bits, rng)
+    values = _values(pixels)          # one grey channel, or all three colour channels
+    out = sequential_lsb(values, bits, rng) if method == SEQUENTIAL else random_lsb(values, bits, rng)
+    return np.stack([out] * 3, axis=-1) if out.ndim == 2 else out
 
 
 # ======================================================================= covers
@@ -303,8 +318,9 @@ def known_cover_check(rng: np.random.Generator) -> list[dict]:
 # ============================================================ black-and-white covers
 
 def grey_cover_check(tiles: dict[str, np.ndarray], rng: np.random.Generator) -> list[dict]:
-    """A black-and-white photo has identical red, green and blue values. The team's code turns a
-    greyscale upload into a colour picture, so hiding anything makes the three channels differ."""
+    """A black-and-white photo has identical red, green and blue values. The team's code used to turn a
+    greyscale upload into a colour picture, so hiding anything made the three channels differ (issue 5).
+    It now keeps such pictures greyscale; this check confirms the channels stay equal."""
     rows = []
     for name, pixels in tiles.items():
         if not (np.array_equal(pixels[:, :, 0], pixels[:, :, 1]) and np.array_equal(pixels[:, :, 1], pixels[:, :, 2])):

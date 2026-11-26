@@ -9,6 +9,7 @@ Run from the "Member 5" folder:
 """
 from __future__ import annotations
 
+import io
 import os
 import random
 import sys
@@ -93,6 +94,16 @@ class RoundTripTests(ImageTestCase):
         for name, image in covers.items():
             with self.subTest(cover=name):
                 self.assert_round_trip(to_bytes(image), f"hidden in {name}")
+
+    def test_greyscale_cover_stays_greyscale(self):
+        # Issue 5 (fixed in Member 1): PNG and BMP output of a black-and-white cover is greyscale again,
+        # so no colour appears between the channels; JPEG already kept them equal.
+        grey = self.image.convert("L")
+        for output_format in ("PNG", "BMP"):
+            with self.subTest(output_format=output_format):
+                result = stego.embed(to_bytes(grey), "grey secret", password="grey-pass", output_format=output_format)
+                self.assertEqual(Image.open(io.BytesIO(result.image)).mode, "L")
+                self.assertEqual(stego.extract(result.image, password="grey-pass"), b"grey secret")
 
     def test_gallery_pictures_of_the_website(self):
         covers = common.gallery_covers()

@@ -1,7 +1,7 @@
 # Text Steganography — Member 2
 
 ## Overview
-This module implements text steganography using invisible Unicode characters to hide secret messages inside ordinary paragraphs. It is the text carrier of the Stego Mail website (Member 3), which calls `hide()` / `reveal()`.
+This module implements text steganography using invisible Unicode characters to hide secret messages inside ordinary paragraphs. It is the text carrier of the Stego Studio website (Member 3), which calls `hide()` / `reveal()`.
 
 ## How It Works
 1. Convert the secret message into binary, wrapped in a small packet (tag, length, CRC32).
@@ -16,7 +16,7 @@ This module implements text steganography using invisible Unicode characters to 
 - Any carrier length, including one-word sentences.
 - Persian text and joined emoji in the carrier are kept: only a long run (8 or more invisible characters) counts as a hidden message.
 - Detects corrupted hidden data (CRC32 without a password, the GCM tag with one).
-- Reads Stego Mail's first text format (tag `ZW`), so older website messages still open.
+- Reads the website's first text format (tag `ZW`), so older website messages still open.
 
 ## Functions
 - `encode_text(carrier, secret, password=None)` / `hide(...)`

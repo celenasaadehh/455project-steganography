@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Stego Mail</title>
+  <title>Stego Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
 <!-- ============================ AUTH ============================ -->
 <div id="auth" class="auth" hidden>
   <div class="auth-card">
-    <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lgA)"/><rect x="6" y="10" width="20" height="14" rx="3" fill="#fff"/><path d="M7.5 12.5l8.5 6 8.5-6" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg><span>Stego Mail</span></div>
+    <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lgA)"/><rect x="6" y="8" width="20" height="16" rx="3" fill="#fff"/><path d="M8.5 21.5l5-5.5 3.5 3.5 2.5-2.5 4 4.5" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="20.5" cy="12.5" r="1.8" fill="#6366f1"/></svg><span>Stego Studio</span></div>
 
     <form id="login-form" class="auth-form" novalidate>
       <h1>Sign in</h1>
@@ -56,14 +56,14 @@
 <!-- ============================ APP ============================ -->
 <div id="app" class="app" hidden>
   <aside class="side">
-    <div class="side-brand"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lgB)"/><rect x="6" y="10" width="20" height="14" rx="3" fill="#fff"/><path d="M7.5 12.5l8.5 6 8.5-6" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>Stego Mail</div>
+    <div class="side-brand"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lgB)"/><rect x="6" y="8" width="20" height="16" rx="3" fill="#fff"/><path d="M8.5 21.5l5-5.5 3.5 3.5 2.5-2.5 4 4.5" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="20.5" cy="12.5" r="1.8" fill="#6366f1"/></svg>Stego Studio</div>
     <button class="me" data-nav="settings" title="Settings">
       <span class="avatar" data-avatar></span>
       <span class="me-text"><strong data-me-name></strong><small>My account</small></span>
     </button>
     <nav class="nav">
-      <button data-nav="inbox" class="active"><svg viewBox="0 0 24 24"><path d="M3 12l3-7h12l3 7v7H3z"/><path d="M3 12h5l2 3h4l2-3h5"/></svg>Inbox<span class="badge" data-unread hidden></span></button>
-      <button data-nav="sent"><svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>Sent</button>
+      <button data-nav="hide" class="active"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Hide</button>
+      <button data-nav="reveal"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 017.7-1.5"/></svg>Reveal</button>
       <button data-nav="gallery"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Gallery</button>
       <button data-nav="tutorial"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Learn</button>
       <button data-nav="history"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>History</button><!-- Member 4 -->
@@ -75,94 +75,149 @@
   <main class="main">
     <header class="bar">
       <button class="icon-btn menu" data-menu aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-      <h1 class="title"><span class="title-ic" data-title-icon></span><span data-title>Inbox</span></h1>
-      <form class="search-wrap" data-search-wrap hidden>
-        <button type="submit" class="search-btn" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
-        <input class="search" type="search" placeholder="Search" data-search>
-      </form>
+      <h1 class="title"><span class="title-ic" data-title-icon></span><span data-title>Hide</span></h1>
     </header>
 
-    <!-- Inbox / Sent -->
-    <section class="view mail" data-view="mail">
-      <div class="list" data-list>
-        <div class="chips" data-filters role="tablist">
-          <button class="chip active" data-filter="all">All</button>
-          <button class="chip" data-filter="unread"><i class="dot"></i>Unread<b data-count="unread"></b></button>
-          <button class="chip" data-filter="pinned"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>Pinned<b data-count="pinned"></b></button>
-          <button class="chip" data-filter="locked"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Locked</button>
-          <button class="chip" data-filter="image"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Image</button>
-          <button class="chip" data-filter="text"><svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>Text</button>
-        </div>
-        <div class="empty" data-empty hidden>
-          <svg viewBox="0 0 24 24"><path d="M3 12l3-7h12l3 7v7H3z"/><path d="M3 12h5l2 3h4l2-3h5"/></svg>
-          <p data-empty-text>Nothing here yet</p>
+    <!-- Hide: make the stego picture or text, then download / copy it -->
+    <section class="view" data-view="hide">
+      <div class="studio">
+        <form class="card studio-form" data-hide novalidate>
+          <div class="segmented small" data-carrier-pick>
+            <button type="button" class="seg active" data-carrier="image">Image</button>
+            <button type="button" class="seg" data-carrier="text">Text</button>
+          </div>
+
+          <div data-carrier-pane="image">
+            <label class="drop big" data-cover-drop>
+              <input type="file" name="image" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" hidden>
+              <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+              <span>Upload or drop a picture</span>
+              <small>or pick one in Gallery</small>
+            </label>
+            <div class="carrier-box" data-cover-box hidden>
+              <div class="cover-preview"><img data-cover-img alt=""></div>
+              <div class="carrier-tools">
+                <button type="button" class="pill" data-cover-change><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>Change</button>
+                <small class="carrier-note" data-cover-name></small>
+              </div>
+            </div>
+            <div class="row-between">
+              <small class="meter-text" data-meter-text>Pick a picture</small>
+              <select name="format" class="mini" title="Image type">
+                <option value="PNG">PNG</option>
+                <option value="JPEG">JPEG</option>
+                <option value="BMP">BMP</option>
+              </select>
+            </div>
+            <div class="meter-bar" data-meter-bar><span></span></div>
+          </div>
+
+          <div data-carrier-pane="text" hidden>
+            <textarea name="cover" rows="2" placeholder="Visible text everyone will see"></textarea>
+          </div>
+
+          <textarea name="message" rows="4" placeholder="Secret message" required></textarea>
+
+          <input name="password" type="password" placeholder="Password (at least 6 characters)" autocomplete="new-password" minlength="6" required>
+
+          <div class="status"></div>
+          <button type="submit" class="btn primary big" data-hide-btn>Hide and download</button>
+        </form>
+
+        <div class="card studio-out" data-out>
+          <div class="out-empty" data-out-empty>
+            <svg class="illus" viewBox="0 0 200 150" aria-hidden="true">
+              <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--blue)"/><stop offset="1" style="stop-color:var(--blue-2)"/></linearGradient></defs>
+              <ellipse cx="100" cy="128" rx="78" ry="10" fill="var(--blue-soft)"/>
+              <rect x="38" y="34" width="124" height="88" rx="12" fill="url(#g1)"/>
+              <path d="M50 110l30-34 22 22 16-16 30 28" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+              <circle cx="108" cy="62" r="8" fill="#fff" fill-opacity=".85"/>
+              <rect x="118" y="16" width="52" height="40" rx="8" fill="#fff" stroke="var(--blue-line)" stroke-width="2"/>
+              <rect x="135" y="32" width="18" height="14" rx="3" fill="url(#g1)"/>
+              <path d="M139 32v-5a5 5 0 0110 0v5" fill="none" stroke="url(#g1)" stroke-width="3"/>
+              <circle cx="30" cy="30" r="5" fill="var(--blue-line)"/><circle cx="176" cy="96" r="4" fill="var(--blue-line)"/><circle cx="20" cy="100" r="3" fill="var(--blue-line)"/>
+            </svg>
+            <h2 data-hello>Hello</h2>
+            <p class="tip-line"><span data-tip></span></p>
+          </div>
+
+          <div class="out-result" data-out-result hidden>
+            <div class="carrier-box">
+              <div class="stage" data-stage="out">
+                <img data-out-img alt="">
+                <canvas class="lens" hidden></canvas>
+              </div>
+              <pre data-out-text hidden></pre>
+              <div class="carrier-tools">
+                <button type="button" class="pill" data-xray="out" hidden title="See the hidden-bit layer"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>X-ray</button>
+                <button type="button" class="pill" data-show-hidden="out" hidden title="Show the invisible characters"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Show hidden</button>
+                <small class="carrier-note" data-note="out"></small>
+              </div>
+            </div>
+            <div class="detail-actions">
+              <a class="btn primary" data-out-download hidden><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>Download</a>
+              <button type="button" class="btn primary" data-out-copy hidden><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy text</button>
+              <a class="btn secondary" data-out-txt hidden><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>.txt</a>
+              <button type="button" class="btn ghost" data-out-try>Open in Reveal</button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="detail-empty" data-detail-empty>
-        <svg class="illus" viewBox="0 0 200 150" aria-hidden="true">
-          <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--blue)"/><stop offset="1" style="stop-color:var(--blue-2)"/></linearGradient></defs>
-          <ellipse cx="100" cy="128" rx="78" ry="10" fill="var(--blue-soft)"/>
-          <rect x="38" y="38" width="124" height="84" rx="12" fill="url(#g1)"/>
-          <path d="M38 50l62 44 62-44" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="4" stroke-linejoin="round"/>
-          <rect x="118" y="20" width="52" height="40" rx="8" fill="#fff" stroke="var(--blue-line)" stroke-width="2"/>
-          <rect x="135" y="36" width="18" height="14" rx="3" fill="url(#g1)"/>
-          <path d="M139 36v-5a5 5 0 0110 0v5" fill="none" stroke="url(#g1)" stroke-width="3"/>
-          <circle cx="30" cy="30" r="5" fill="var(--blue-line)"/><circle cx="176" cy="96" r="4" fill="var(--blue-line)"/><circle cx="20" cy="100" r="3" fill="var(--blue-line)"/>
-        </svg>
-        <h2 data-empty-hello>Hello</h2>
-        <button class="btn primary" data-compose-open><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New message</button>
-        <p class="tip-line"><span data-tip></span></p>
-        <p class="keys"><kbd>C</kbd> new <kbd>/</kbd> search <kbd>J</kbd><kbd>K</kbd> move <kbd>P</kbd> pin <kbd>R</kbd> reply</p>
-      </div>
-      <article class="detail" data-detail hidden>
-        <header class="detail-head">
-          <button class="icon-btn back" data-back aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <span class="avatar" data-d-avatar></span>
-          <div class="who"><strong data-d-name></strong><small data-d-sub></small></div><!-- sub: "Received"/"Sent", never the e-mail -->
-          <time data-d-time></time>
-        </header>
-        <div class="tools" data-tools>
-          <button class="tool" data-reply title="Reply (r)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 015 5v6"/></svg><span>Reply</span></button>
-          <button class="tool" data-pin title="Pin (p)"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><span data-pin-label>Pin</span></button>
-          <button class="tool" data-mark-unread title="Mark unread (u)"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span>Unread</span></button>
-          <span class="tools-gap"></span>
-          <button class="tool danger" data-delete title="Delete (Del)"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
-        </div>
-        <h2 class="subject" data-d-subject></h2>
+    </section>
 
-        <div class="carrier-box" data-carrier-box>
-          <div class="stage" data-stage hidden>
-            <img data-d-img alt="">
-            <canvas class="lens" data-lens hidden></canvas>
-            <span class="scan" data-scan></span>
+    <!-- Reveal: upload a picture or paste text, enter the password -->
+    <section class="view" data-view="reveal" hidden>
+      <div class="studio single">
+        <form class="card studio-form" data-reveal novalidate>
+          <div class="segmented small" data-carrier-pick>
+            <button type="button" class="seg active" data-carrier="image">Image</button>
+            <button type="button" class="seg" data-carrier="text">Text</button>
           </div>
-          <pre data-d-text hidden></pre>
-          <div class="carrier-tools">
-            <button class="pill" data-xray hidden title="See the hidden-bit layer"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>X-ray</button>
-            <button class="pill" data-show-hidden hidden title="Show the invisible characters"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Show hidden</button>
-            <small class="carrier-note" data-carrier-note></small>
-          </div>
-        </div>
 
-        <div class="reveal" data-reveal>
-          <form class="unlock" data-unlock novalidate>
+          <div data-carrier-pane="image">
+            <label class="drop" data-drop>
+              <input type="file" name="image" accept="image/png,image/jpeg,image/bmp" hidden>
+              <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+              <span>Upload or drop the picture</span>
+            </label>
+            <div class="carrier-box" data-r-box hidden>
+              <div class="stage" data-stage="in">
+                <img data-r-img alt="">
+                <canvas class="lens" hidden></canvas>
+                <span class="scan"></span>
+              </div>
+              <div class="carrier-tools">
+                <button type="button" class="pill" data-xray="in" title="See the hidden-bit layer"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>X-ray</button>
+                <button type="button" class="pill" data-r-change><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>Change</button>
+                <small class="carrier-note" data-note="in"></small>
+              </div>
+            </div>
+          </div>
+
+          <div data-carrier-pane="text" hidden>
+            <div class="carrier-box">
+              <textarea name="text" rows="4" placeholder="Paste the text" class="paste"></textarea>
+              <pre data-r-text hidden></pre>
+              <div class="carrier-tools">
+                <button type="button" class="pill" data-show-hidden="in" title="Show the invisible characters"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Show hidden</button>
+                <small class="carrier-note" data-note="in-text"></small>
+              </div>
+            </div>
+          </div>
+
+          <div class="unlock">
             <input name="password" type="password" placeholder="Password" autocomplete="off">
             <button class="btn primary" type="submit">Reveal</button>
-          </form>
-          <div class="status" data-d-status></div>
+          </div>
+          <div class="status"></div>
           <div class="secret" data-secret hidden></div>
-        </div>
-
-        <div class="detail-actions">
-          <a class="btn ghost" data-download hidden><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>Download</a>
-          <button class="btn ghost" data-copy-text hidden><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy text</button>
-        </div>
-      </article>
+        </form>
+      </div>
     </section>
 
     <!-- Gallery -->
     <section class="view" data-view="gallery" hidden>
-      <div class="grid" data-gallery>
+      <div class="grid" data-gallery-grid>
         <label class="gtile gadd" title="Add a picture to your gallery">
           <input type="file" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" data-gallery-add hidden>
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -174,13 +229,12 @@
     <!-- Tutorial -->
     <section class="view" data-view="tutorial" hidden>
       <div class="steps">
-        <div class="tstep"><span class="n">1</span><div><h3>Press <b class="plus-inline">+</b></h3><p>Enter your friend's email.</p></div></div>
-        <div class="tstep"><span class="n">2</span><div><h3>Pick a picture</h3><p>From the gallery, or upload your own. Or choose <em>Text</em> to hide your message inside a sentence.</p></div></div>
-        <div class="tstep"><span class="n">3</span><div><h3>Write and lock</h3><p>Type the secret. Add a password and share it with your friend another way, like a phone call.</p></div></div>
-        <div class="tstep"><span class="n">4</span><div><h3>They reveal it</h3><p>In their Inbox, the picture looks ordinary. With the password, the hidden message appears.</p></div></div>
+        <div class="tstep"><span class="n">1</span><div><h3>Hide</h3><p>Pick a picture, or choose <em>Text</em> to hide inside a sentence. Write the secret and add a password.</p></div></div>
+        <div class="tstep"><span class="n">2</span><div><h3>Download</h3><p>Save the picture, or copy the text. It looks completely ordinary.</p></div></div>
+        <div class="tstep"><span class="n">3</span><div><h3>Reveal</h3><p>Upload the picture or paste the text in <em>Reveal</em> and enter the password.</p></div></div>
       </div>
       {% include "member4/learn.html" %}<!-- Member 4 -->
-      <button class="btn primary" data-compose-open>Send your first message</button>
+      <button class="btn primary" data-go="hide">Start hiding</button>
     </section>
 
     {% include "member4/history.html" %}<!-- Member 4 -->
@@ -193,7 +247,6 @@
           <button data-sub="appearance">Appearance</button>
           <button data-sub="privacy">Privacy</button>
           <button data-sub="security">Security</button>
-          <button data-sub="notifications">Notifications</button>
           <button data-sub="about">About</button>
         </div>
 
@@ -241,41 +294,14 @@
                 <button class="swatch" data-accent="purple" style="background:#6d28d9" title="Purple" aria-label="Purple"></button>
               </div>
             </div>
-            <div class="srow">
-              <div class="lbl"><strong>Compact list</strong><small>Smaller rows in Inbox and Sent</small></div>
-              <label class="switch"><input type="checkbox" data-density><span class="track"></span></label>
-            </div>
           </div>
         </div>
 
         <!-- Privacy -->
         <div data-subpanel="privacy" hidden>
-          <div class="card">
-            <div class="srow">
-              <div class="lbl"><strong>Who can message me</strong><small>Others get a clear "not accepting" notice</small></div>
-              <select data-pref="inbox_mode">
-                <option value="everyone">Everyone</option>
-                <option value="contacts">People I wrote to</option>
-                <option value="nobody">No one</option>
-              </select>
-            </div>
-            <div class="srow">
-              <div class="lbl"><strong>Show my full name</strong><small>Off: others see your first name only</small></div>
-              <label class="switch"><input type="checkbox" data-pref="show_name"><span class="track"></span></label>
-            </div>
-            <div class="srow">
-              <div class="lbl"><strong>Auto-delete received</strong><small>Removed from your Inbox after this time</small></div>
-              <select data-pref="auto_delete_days">
-                <option value="0">Never</option>
-                <option value="7">7 days</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-              </select>
-            </div>
-          </div>
           <div class="card about">
             <h3>Your data</h3>
-            <p>Only the picture or text with the secret inside is stored. <b>The secret itself is never saved</b> and your lock password never leaves the moment it is used.</p>
+            <p>Pictures and text are made on the spot and handed straight to you. <b>Nothing you hide or reveal is saved</b>, and your password is used only for that moment.</p>
             <a class="btn secondary" href="/api/me/export" download>Download my data</a>
           </div>
         </div>
@@ -293,44 +319,18 @@
           </div>
           <div class="card">
             <div class="srow">
-              <div class="lbl"><strong>Lock new messages by default</strong><small>Lock starts on whenever you write a message</small></div>
-              <label class="switch"><input type="checkbox" data-pref="default_lock"><span class="track"></span></label>
-            </div>
-            <div class="srow">
               <div class="lbl"><strong>Sign-in</strong><small>You are signed out every time you leave or reload</small></div>
               <span class="row-kind">Always</span>
             </div>
           </div>
           <div class="card danger">
             <h3>Delete account</h3>
-            <p class="hint">Removes your messages, pictures and profile. Cannot be undone.</p>
+            <p class="hint">Removes your pictures, history and profile. Cannot be undone.</p>
             <form data-delete-account novalidate>
               <input name="password" type="password" placeholder="Your password" autocomplete="current-password">
               <div class="status"></div>
               <button class="btn outline-danger" type="submit">Delete my account</button>
             </form>
-          </div>
-        </div>
-
-        <!-- Notifications -->
-        <div data-subpanel="notifications" hidden>
-          <div class="card">
-            <div class="srow">
-              <div class="lbl"><strong>Desktop notifications</strong><small>Pop-up when a message arrives while this tab is open</small></div>
-              <label class="switch"><input type="checkbox" data-notify="desktop"><span class="track"></span></label>
-            </div>
-            <div class="srow">
-              <div class="lbl"><strong>Sound</strong><small>Short chime for new messages</small></div>
-              <label class="switch"><input type="checkbox" data-notify="sound"><span class="track"></span></label>
-            </div>
-            <div class="srow">
-              <div class="lbl"><strong>Count in tab title</strong><small>Shows unread like "(2) Stego Mail"</small></div>
-              <label class="switch"><input type="checkbox" data-notify="title"><span class="track"></span></label>
-            </div>
-            <div class="srow">
-              <div class="lbl"><strong>Test</strong><small>Try the notification and sound now</small></div>
-              <button class="btn secondary" type="button" data-notify-test>Send test</button>
-            </div>
           </div>
         </div>
 
@@ -340,8 +340,6 @@
             <h3>My account</h3>
             <ul class="about-list">
               <li><span>Member since</span><b data-about="created"></b></li>
-              <li><span>Received</span><b data-about="received"></b></li>
-              <li><span>Sent</span><b data-about="sent"></b></li>
               <li><span>My pictures</span><b data-about="pictures"></b></li>
             </ul>
           </div>
@@ -353,7 +351,7 @@
             <p><b>Lock</b> · AES-256-GCM; the key comes from your password through scrypt.</p>
           </div>
           <div class="card about">
-            <h3>Stego Mail</h3>
+            <h3>Stego Studio</h3>
             <p>Project 17 · Steganography (message and image). Member 1: image engine. Member 2: text carrier. Member 3: website. Member 4: Learn and History. Member 5: testing.</p>
           </div>
         </div>
@@ -363,68 +361,6 @@
     </section>
   </main>
 
-  <button class="fab" data-compose-open aria-label="New message"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-</div>
-
-<!-- ============================ COMPOSE ============================ -->
-<div id="compose" class="modal" hidden>
-  <form class="sheet" data-compose novalidate>
-    <header class="sheet-head">
-      <h2>New message</h2>
-      <button type="button" class="icon-btn" data-compose-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-    </header>
-
-    <div class="field to">
-      <input name="to" type="email" placeholder="To: email" autocomplete="off" spellcheck="false">
-      <span class="to-status" data-to-status></span>
-    </div>
-    <div class="field">
-      <input name="subject" placeholder="Subject" maxlength="80">
-    </div>
-
-    <div class="segmented small" data-carrier-pick>
-      <button type="button" class="seg active" data-carrier="image">Image</button>
-      <button type="button" class="seg" data-carrier="text">Text</button>
-    </div>
-
-    <div data-carrier-pane="image">
-      <div class="pick-grid" data-pick-grid>
-        <label class="tile upload" title="Upload your own">
-          <input type="file" name="image" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" hidden>
-          <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
-          <span>Upload</span>
-          <img alt="" hidden>
-        </label>
-      </div>
-      <div class="row-between">
-        <small class="meter-text" data-meter-text>Pick a picture</small>
-        <select name="format" class="mini" title="Image type">
-          <option value="PNG">PNG</option>
-          <option value="JPEG">JPEG</option>
-          <option value="BMP">BMP</option>
-        </select>
-      </div>
-      <div class="meter-bar" data-meter-bar><span></span></div>
-    </div>
-
-    <div data-carrier-pane="text" hidden>
-      <textarea name="cover" rows="2" placeholder="Visible text everyone will see"></textarea>
-    </div>
-
-    <textarea name="message" rows="4" placeholder="Secret message" required></textarea>
-
-    <div class="lock-row">
-      <label class="switch"><input type="checkbox" name="lock" checked><span class="track"></span><span>Lock</span></label>
-      <input name="password" type="password" placeholder="Password" autocomplete="new-password">
-    </div>
-    <p class="lock-warn" data-lock-warn hidden>Without a lock, anyone can read or swap the hidden message.</p>
-
-    <div class="status"></div>
-    <footer class="sheet-foot">
-      <button type="button" class="btn ghost" data-compose-close>Cancel</button>
-      <button type="submit" class="btn primary">Send</button>
-    </footer>
-  </form>
 </div>
 
 <!-- ============================ AVATAR CROP ============================ -->
@@ -451,23 +387,6 @@
 </div>
 
 <div class="toast" data-toast hidden></div>
-
-<template id="tpl-row">
-  <div class="row" role="button" tabindex="0">
-    <i class="row-dot"></i>
-    <span class="avatar"></span>
-    <span class="row-main">
-      <span class="row-top"><strong class="row-name"></strong><svg class="row-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><time class="row-time"></time></span>
-      <span class="row-sub"><span class="row-kind"></span><span class="row-subject"></span></span>
-    </span>
-    <img class="row-thumb" alt="" hidden>
-    <span class="row-acts">
-      <button type="button" data-act="pin" title="Pin"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></button>
-      <button type="button" data-act="read" title="Read / unread"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button>
-      <button type="button" data-act="delete" title="Delete"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
-    </span>
-  </div>
-</template>
 
 <template id="tpl-gallery">
   <div class="gtile" role="button" tabindex="0">

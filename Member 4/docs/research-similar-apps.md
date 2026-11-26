@@ -1,6 +1,6 @@
 # Research: Similar Existing Steganography Applications
 
-*Member 4: Educational & Convenience Features (EECE 455/632, Project 17: Stego Mail)*
+*Member 4: Educational & Convenience Features (EECE 455/632, Project 17: Stego Studio)*
 
 ## Why we looked at existing tools
 Before building the educational and convenience features, we reviewed popular steganography tools. We wanted to see (1) which carriers and methods they support, (2) how easy they are to use, and (3) whether they **teach** the user what is happening. Point (3) matters because the course asks for an application that is "user friendly and suitable for educational purposes".
@@ -21,16 +21,16 @@ Before building the educational and convenience features, we reviewed popular st
 2. **Basic LSB is the common image method** (OpenStego, StegOnline). It is simple but leaves clustered, statistically detectable changes. Our app (Member 1) improves on it with texture-adaptive tile selection, matrix embedding (3 bits per 7 values, at most one change) and randomised pixel order. It also offers a separate JPEG method that survives re-saving.
 3. **Text tools use invisible characters or whitespace.** StegCloak uses zero-width characters, SNOW uses trailing whitespace. Our app (Member 2) uses four zero-width characters, so each carries 2 bits.
 4. **Most tools add encryption on top of hiding.** Ours does too: scrypt + AES-256-GCM, shared by the image and text methods.
-5. **None of them** lets you send the result to another user, keep a history, or pick from a built-in gallery.
+5. **None of them** keeps a history, shows where the hidden bits went, or offers a built-in gallery.
 
-## What Stego Mail adds
+## What Stego Studio adds
 
-| Gap in existing tools | Stego Mail |
+| Gap in existing tools | Stego Studio |
 |---|---|
 | Black box, no explanation | **Learn tab**: explains our actual methods, with a step-by-step walkthrough that runs the real code |
 | You can't see what changed | Busy-area map, the real groups of 7 values before/after, map of changed pixels, PSNR |
 | No record of past operations | **History tab**: every hide and reveal (secret never stored) |
-| Files must be passed around by hand | Built-in mail: send to another user's inbox |
+| Hard to check the result | **X-ray** view of the hidden-bit layer, and **Open in Reveal** to test a picture right after hiding it |
 | Choosing a cover image | **Gallery**: 10 built-in pictures + your own |
 | Desktop install or command line | Runs in the browser |
 

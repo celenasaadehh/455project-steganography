@@ -139,7 +139,7 @@ These characters can be stored and processed by software without being visible d
 **Limitations:**
 - Invisible characters can be detected programmatically.
 - Some applications remove or normalize them.
-- The method does not encrypt secret messages.
+- The basic method does not encrypt secret messages (the team's version adds a password lock with AES-256-GCM; see section 9).
 - Copying text through certain applications may destroy hidden data.
 
 ---
@@ -372,7 +372,7 @@ The modified text should therefore be preserved exactly, preferably as a UTF-8 t
 
 ## 11. Website Integration
 
-The text steganography implementation is integrated into the group's web application, Stego Mail.
+The text steganography implementation is integrated into the group's web application, Stego Studio.
 
 The website's backend imports `text_stega.py` directly from this folder.
 

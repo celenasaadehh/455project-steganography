@@ -3,5 +3,5 @@ build/
 __pycache__/
 *.pyc
 .vscode/
-# Stego Mail runtime data: accounts database, uploaded files, session key
+# Stego Studio runtime data: accounts database, uploaded files, session key
 Member 3/data/

@@ -1,19 +1,19 @@
 # Member 4: Educational & Convenience Features
 
-Adds two tabs to Stego Mail (Member 3's website):
+Adds two tabs to Stego Studio (Member 3's website):
 
 - **Learn**: explains how *our* app hides messages: Member 1's image method, Member 2's text method, and the password lock. It includes a **step-by-step walkthrough** that runs the team's real `embed()` / `hide()` code and shows what happened inside (bits, header, busy-area map, the real groups of 7 values before/after, changed pixels, PSNR, reveal).
 - **Detection lab** ("Can it be detected?", in the Learn tab): hides the same random message with plain LSB and with our app, runs the **chi-square attack** (Westfeld & Pfitzmann) on both and on the clean picture, and shows a chart, a verdict (none / weak / strong signal) and a map of where each method changed the picture.
 - **Robustness lab** ("What breaks the message?", in the Learn tab): hides a message with the team's real code, applies everyday changes (re-saving, rotating, brightness, cropping, resizing, JPEG; for text: added text, Unicode normalisation, emoji, stripping invisible characters, retyping) and tries to reveal it after each.
-- **History**: every Send (hide) and Reveal is recorded automatically, with filters, delete, clear and CSV export. The secret message is **never stored**, only its length.
+- **History**: every Hide and Reveal is recorded automatically, with filters, delete, clear and CSV export. The secret message is **never stored**, only its length.
 
-The saved-image library is Member 2's **Gallery** tab (10 built-in pictures plus the user's own). The Learn walkthrough uses the same gallery.
+The saved-image library is Member 3's **Gallery** tab (10 built-in pictures plus the user's own). The Learn walkthrough uses the same gallery.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `member4.py` | Flask blueprint: Learn API, History API, records Send/Reveal automatically |
+| `member4.py` | Flask blueprint: Learn API, History API, records Hide/Reveal automatically |
 | `learn_trace.py` | Runs Member 1's and Member 2's real functions and collects every step for the walkthrough |
 | `labs.py` | Detection lab (chi-square attack) and robustness lab |
 | `templates/member4/learn.html` | Learn tab content (shown inside the Tutorial/Learn view) |

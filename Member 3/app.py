@@ -1,8 +1,10 @@
-"""Stego Mail: send secret messages hidden in images or text to other users.
+"""Stego Studio: hide a secret message in a picture or a sentence, download it, reveal it later.
 
 Run from this folder:  python app.py   then open http://127.0.0.1:5000
-Image steganography comes from Member 1 (../Member 1/image_stego.py).
-Only the stego image/text is stored on the server, never the hidden message.
+Image steganography comes from Member 1 (../Member 1/image_stego.py), text from
+Member 2 (../Member 2/text_stega.py). Nothing is sent to anyone: Hide returns the
+finished picture or text straight to the browser and Reveal reads an uploaded one.
+Neither the stego files nor the hidden messages are stored on the server.
 """
 from __future__ import annotations
 
@@ -12,6 +14,8 @@ import os
 import re
 import secrets
 import sys
+import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -37,13 +41,17 @@ ACCENTS = ("navy", "sky", "red", "green", "purple")  # app colour choices in Set
 CODE_TTL_MIN = 10        # a verification code is valid this long
 CODE_RESEND_SEC = 45     # minimum gap between two codes for the same address
 CODE_MAX_TRIES = 5
+MIN_PASSWORD = 6         # shortest password Hide accepts (and accounts use)
+TRY_WINDOW = 15 * 60     # wrong passwords are counted over this many seconds
+TRY_LIMIT = 5            # wrong passwords allowed per account in that window...
+TRY_LIMIT_IP = 20        # ...and per network address (stops spreading guesses over many accounts)
 
 GALLERY_DIR = ROOT / "static" / "gallery"       # the 10 built-in pictures
 USER_GALLERY = db.DATA / "gallery"               # pictures users add to their own gallery
 USER_GALLERY_MAX = 30
-FILES = db.DATA / "files"
 AVATARS = db.DATA / "avatars"
 FORMATS = {"PNG": "png", "JPEG": "jpg", "BMP": "bmp"}
+MIMES = {"png": "image/png", "jpg": "image/jpeg", "bmp": "image/bmp"}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -92,61 +100,24 @@ def current_user():
 
 
 def public_user(u: dict | None, me: bool = False):
-    """What the browser sees of a user. For other people (me=False) the Privacy
-    setting "show full name" may reduce the name to the first name only."""
+    """What the browser sees of a user."""
     if not u:
         return None
-    last = u["last_name"] if (me or u.get("show_name", 1)) else ""
     out = {
         "id": u["id"], "handle": u["handle"], "is_email": bool(u["is_email"]),
-        "first_name": u["first_name"], "last_name": last,
-        "name": f"{u['first_name']} {last}".strip(),
-        "initials": (u["first_name"][:1] + last[:1]).upper() or u["handle"][:2].upper(),
+        "first_name": u["first_name"], "last_name": u["last_name"],
+        "name": f"{u['first_name']} {u['last_name']}".strip(),
+        "initials": (u["first_name"][:1] + u["last_name"][:1]).upper() or u["handle"][:2].upper(),
         "avatar": f"/avatars/{u['id']}?v={u['avatar']}" if u["avatar"] else None,
         "accent": u.get("accent") or "navy",
     }
     if me:
         out["created"] = u["created"]
-        out["prefs"] = {"inbox_mode": u.get("inbox_mode") or "everyone", "show_name": bool(u.get("show_name", 1)),
-                        "auto_delete_days": int(u.get("auto_delete_days") or 0), "default_lock": bool(u.get("default_lock", 1))}
     return out
 
 
 def me_user():
     return public_user(current_user(), me=True)
-
-
-INBOX_MODES = ("everyone", "contacts", "nobody")
-AUTO_DELETE_CHOICES = (0, 7, 30, 90)
-
-
-def _purge_old(uid: int):
-    """Privacy setting: drop received messages older than N days (lazy, on inbox load)."""
-    u = db.one("SELECT auto_delete_days FROM users WHERE id=?", uid)
-    days = int(u["auto_delete_days"] or 0) if u else 0
-    if not days:
-        return
-    old = db.all_("SELECT id FROM messages WHERE recipient_id=? AND recipient_deleted=0 AND created < datetime('now', ?)", uid, f"-{days} days")
-    for m in old:
-        _delete_for(m["id"], uid)
-
-
-def _delete_for(mid: int, uid: int):
-    """Hide a message from one side; remove it entirely once both sides have deleted it."""
-    m = db.one("SELECT * FROM messages WHERE id=?", mid)
-    if not m:
-        return
-    if m["sender_id"] == m["recipient_id"]:
-        db.run("UPDATE messages SET sender_deleted=1, recipient_deleted=1 WHERE id=?", mid)
-    else:
-        col = "sender_deleted" if m["sender_id"] == uid else "recipient_deleted"
-        db.run(f"UPDATE messages SET {col}=1 WHERE id=?", mid)
-    m = db.one("SELECT * FROM messages WHERE id=?", mid)
-    if m["sender_deleted"] and m["recipient_deleted"]:
-        if m["file"]:
-            _unlink_quiet(FILES / m["file"])
-            _unlink_quiet(FILES / f"{m['file']}.thumb.jpg")
-        db.run("DELETE FROM messages WHERE id=?", mid)
 
 
 def normalize_handle(raw: str):
@@ -188,6 +159,56 @@ def _unlink_quiet(path: Path):
         pass
 
 
+class Attempts:
+    """Counts wrong passwords in memory and blocks a key after too many in TRY_WINDOW seconds."""
+
+    def __init__(self):
+        self._fails: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def _recent(self, key: str, now: float) -> list[float]:
+        times = [t for t in self._fails.get(key, []) if now - t < TRY_WINDOW]
+        if times:
+            self._fails[key] = times
+        else:
+            self._fails.pop(key, None)
+        return times
+
+    def wait(self, limits: dict[str, int]) -> int:
+        """Seconds until the blocked key with the longest wait is free again (0 = not blocked)."""
+        now = time.time()
+        with self._lock:
+            waits = [int(times[-limit] + TRY_WINDOW - now) + 1
+                     for key, limit in limits.items() if len(times := self._recent(key, now)) >= limit]
+        return max(waits, default=0)
+
+    def fail(self, *keys: str):
+        with self._lock:
+            for key in keys:
+                self._fails.setdefault(key, []).append(time.time())
+
+    def clear(self, *keys: str):
+        with self._lock:
+            for key in keys or list(self._fails):
+                self._fails.pop(key, None)
+
+
+attempts = Attempts()
+
+
+def _too_many(limits: dict[str, int]):
+    """A 429 response if any of the keys is blocked, else None."""
+    wait = attempts.wait(limits)
+    if not wait:
+        return None
+    minutes = max(1, round(wait / 60))
+    return fail(f"Too many wrong passwords. Try again in {minutes} minute{'s' if minutes > 1 else ''}.", "slow_down", 429)
+
+
+def _ip() -> str:
+    return request.remote_addr or "?"
+
+
 def _password() -> str | None:
     pw = request.form.get("password", "")
     return pw or None
@@ -204,32 +225,6 @@ def gallery_item(gid) -> dict | None:
     return next((g for g in gallery_index() if str(g["id"]) == str(gid)), None)
 
 
-def message_view(m: dict, me: int, box: str | None = None) -> dict:
-    other = db.one("SELECT * FROM users WHERE id=?", m["recipient_id"] if m["sender_id"] == me else m["sender_id"])
-    direction = box or ("sent" if m["sender_id"] == me else "inbox")  # a self-sent message is in both boxes
-    return {
-        "id": m["id"], "carrier": m["carrier"], "format": m["format"], "subject": m["subject"],
-        "locked": bool(m["locked"]), "created": m["created"], "read": m["read_at"] is not None,
-        "direction": direction,
-        "pinned": bool(m["sender_pinned"] if direction == "sent" else m["recipient_pinned"]),
-        "to_me": m["recipient_id"] == me,
-        "with": public_user(other),
-        "file_url": f"/files/{m['id']}" if m["file"] else None,
-        "thumb_url": f"/files/{m['id']}/thumb" if m["file"] else None,
-        "text": m["text"],
-        "gallery_id": m["gallery_id"],
-    }
-
-
-def _load_message(mid: int, me: int) -> dict:
-    m = db.one("SELECT * FROM messages WHERE id=?", mid)
-    if not m or me not in (m["sender_id"], m["recipient_id"]):
-        abort(404)
-    if (m["sender_id"] == me and m["sender_deleted"]) or (m["recipient_id"] == me and m["recipient_deleted"]):
-        abort(404)
-    return m
-
-
 # ---------------------------------------------------------------- errors
 
 @app.errorhandler(413)
@@ -239,9 +234,16 @@ def too_large(_):
 
 @app.errorhandler(404)
 def not_found(_):
-    if request.path.startswith(("/api/", "/files/", "/avatars/")):
+    if request.path.startswith(("/api/", "/avatars/", "/gallery/")):
         return fail("Not found.", "not_found", 404)
     return render_template("index.html"), 404
+
+
+@app.errorhandler(500)
+def server_error(_):
+    if request.path.startswith("/api/"):
+        return fail("Something went wrong on the server. Please try again.", "server", 500)
+    return "Something went wrong on the server.", 500
 
 
 @app.errorhandler(img.DependencyError)
@@ -288,11 +290,11 @@ def _send_code(u: dict):
     code = f"{secrets.randbelow(10**6):06d}"
     db.run("UPDATE users SET code_hash=?, code_expires=?, code_sent=?, code_attempts=0 WHERE id=?",
            generate_password_hash(code), (_now() + timedelta(minutes=CODE_TTL_MIN)).isoformat(), _now().isoformat(), u["id"])
-    body = (f"Hi {u['first_name']},\n\nYour Stego Mail verification code is:\n\n    {code}\n\n"
+    body = (f"Hi {u['first_name']},\n\nYour Stego Studio verification code is:\n\n    {code}\n\n"
             f"It expires in {CODE_TTL_MIN} minutes. If you did not create an account, ignore this e-mail.\n")
     if mailer.configured():
         try:
-            mailer.send(u["handle"], f"{code} is your Stego Mail code", body)
+            mailer.send(u["handle"], f"{code} is your Stego Studio code", body)
         except mailer.MailError as exc:
             return fail(str(exc), "mail", 502)
         return jsonify(ok=True, verify=True, email=u["handle"], mail_sent=True)
@@ -311,8 +313,8 @@ def register():
     pw = d.get("password") or ""
     if not first:
         return fail("Please enter your first name.")
-    if len(pw) < 6:
-        return fail("Use a password of at least 6 characters.")
+    if len(pw) < MIN_PASSWORD:
+        return fail(f"Use a password of at least {MIN_PASSWORD} characters.")
     existing = db.one("SELECT * FROM users WHERE handle=?", handle)
     if existing and (existing["verified"] or not VERIFY_EMAIL):
         return fail("That e-mail is already registered. Sign in instead.", "exists")
@@ -371,9 +373,14 @@ def login():
         handle, _ = normalize_handle(d.get("handle", ""))
     except ValueError:
         return fail("Wrong e-mail or password.", "auth", 401)
+    keys = {f"login:{handle}": TRY_LIMIT, f"login-ip:{_ip()}": TRY_LIMIT_IP}
+    if (blocked := _too_many(keys)):
+        return blocked
     u = db.one("SELECT * FROM users WHERE handle=?", handle)
     if not u or not check_password_hash(u["password_hash"], d.get("password") or ""):
+        attempts.fail(*keys)
         return fail("Wrong e-mail or password.", "auth", 401)
+    attempts.clear(f"login:{handle}")
     if not u["verified"] and not VERIFY_EMAIL:
         db.run("UPDATE users SET verified=1 WHERE id=?", u["id"])
     elif not u["verified"]:
@@ -400,11 +407,8 @@ def me():
     if not u or not u["verified"]:
         session.clear()
         return jsonify(ok=True, user=None)
-    unread = db.one("SELECT COUNT(*) n FROM messages WHERE recipient_id=? AND read_at IS NULL AND recipient_deleted=0", u["id"])["n"]
-    received = db.one("SELECT COUNT(*) n FROM messages WHERE recipient_id=? AND recipient_deleted=0", u["id"])["n"]
-    sent = db.one("SELECT COUNT(*) n FROM messages WHERE sender_id=? AND sender_deleted=0", u["id"])["n"]
     pictures = db.one("SELECT COUNT(*) n FROM user_gallery WHERE user_id=?", u["id"])["n"]
-    return jsonify(ok=True, user=public_user(u, me=True), unread=unread, received=received, sent=sent, pictures=pictures)
+    return jsonify(ok=True, user=public_user(u, me=True), pictures=pictures)
 
 
 @app.post("/api/me")
@@ -416,24 +420,6 @@ def update_me():
         if d["accent"] not in ACCENTS:
             return fail("Unknown colour.")
         db.run("UPDATE users SET accent=? WHERE id=?", d["accent"], u["id"])
-    # Privacy / security preferences (each optional)
-    truthy = lambda v: v in (True, 1, "1", "true", "on")
-    if "inbox_mode" in d:
-        if d["inbox_mode"] not in INBOX_MODES:
-            return fail("Unknown option.")
-        db.run("UPDATE users SET inbox_mode=? WHERE id=?", d["inbox_mode"], u["id"])
-    if "show_name" in d:
-        db.run("UPDATE users SET show_name=? WHERE id=?", int(truthy(d["show_name"])), u["id"])
-    if "default_lock" in d:
-        db.run("UPDATE users SET default_lock=? WHERE id=?", int(truthy(d["default_lock"])), u["id"])
-    if "auto_delete_days" in d:
-        try:
-            days = int(d["auto_delete_days"])
-        except (TypeError, ValueError):
-            return fail("Unknown option.")
-        if days not in AUTO_DELETE_CHOICES:
-            return fail("Unknown option.")
-        db.run("UPDATE users SET auto_delete_days=? WHERE id=?", days, u["id"])
     first = (d.get("first_name") or u["first_name"]).strip()[:40]
     last = (d.get("last_name") or "").strip()[:40] if "last_name" in d else u["last_name"]
     if not first:
@@ -441,8 +427,8 @@ def update_me():
     if d.get("new_password"):
         if not check_password_hash(u["password_hash"], d.get("current_password") or ""):
             return fail("Your current password is wrong.", "password", 401)
-        if len(d["new_password"]) < 6:
-            return fail("Use a new password of at least 6 characters.")
+        if len(d["new_password"]) < MIN_PASSWORD:
+            return fail(f"Use a new password of at least {MIN_PASSWORD} characters.")
         db.run("UPDATE users SET password_hash=? WHERE id=?", generate_password_hash(d["new_password"]), u["id"])
     db.run("UPDATE users SET first_name=?, last_name=? WHERE id=?", first, last, u["id"])
     return jsonify(ok=True, user=me_user())
@@ -484,16 +470,14 @@ def clear_avatar():
 def export_me():
     """Download everything the server knows about the account, as JSON."""
     uid = session["uid"]
-    rows = db.all_("SELECT * FROM messages WHERE (sender_id=? AND sender_deleted=0) OR (recipient_id=? AND recipient_deleted=0) ORDER BY created, id", uid, uid)
     data = {
         "exported": _now().isoformat(timespec="seconds") + "Z",
         "account": me_user(),
-        "messages": [message_view(m, uid) for m in rows],
         "gallery": [g for g in _gallery_items(uid) if g["own"]],
-        "note": "Hidden messages are not included: they exist only inside the image/text files and need their passwords.",
+        "note": "Nothing you hide is stored on the server, so no pictures, texts or messages are included.",
     }
     resp = jsonify(data)
-    resp.headers["Content-Disposition"] = 'attachment; filename="stego-mail-export.json"'
+    resp.headers["Content-Disposition"] = 'attachment; filename="stego-studio-export.json"'
     return resp
 
 
@@ -506,11 +490,6 @@ def delete_me():
     if not check_password_hash(u["password_hash"], d.get("password") or ""):
         return fail("Wrong password.", "password", 401)
     uid = u["id"]
-    for m in db.all_("SELECT * FROM messages WHERE sender_id=? OR recipient_id=?", uid, uid):
-        if m["file"]:
-            _unlink_quiet(FILES / m["file"])
-            _unlink_quiet(FILES / f"{m['file']}.thumb.jpg")
-        db.run("DELETE FROM messages WHERE id=?", m["id"])
     for g in db.all_("SELECT * FROM user_gallery WHERE user_id=?", uid):
         _unlink_quiet(USER_GALLERY / f"{g['file']}.png")
         _unlink_quiet(USER_GALLERY / f"{g['file']}.thumb.jpg")
@@ -529,17 +508,6 @@ def avatar(uid):
     if not u or not u["avatar"]:
         abort(404)
     return send_file(AVATARS / u["avatar"], mimetype="image/png", max_age=3600)
-
-
-@app.get("/api/users/lookup")
-@login_required
-def lookup():
-    try:
-        q, _ = normalize_handle(request.args.get("q", ""))
-    except ValueError:
-        return jsonify(ok=True, user=None)
-    u = db.one("SELECT * FROM users WHERE handle=? AND verified=1", q)
-    return jsonify(ok=True, user=public_user(u))
 
 
 # ---------------------------------------------------------------- gallery
@@ -628,7 +596,7 @@ def gallery_thumb(gid):
 
 
 def _cover_bytes():
-    """Cover image for the compose form: a built-in picture, one of the user's own, or an upload."""
+    """Cover image for Hide (and the Learn labs): a built-in picture, one of the user's own, or an upload."""
     gid = request.form.get("gallery")
     if gid:
         own = _own_gallery_row(gid, session["uid"])
@@ -655,138 +623,83 @@ def image_capacity():
                    width=cap.width, height=cap.height)
 
 
-# ---------------------------------------------------------------- messages
+# ---------------------------------------------------------------- hide / reveal
 
-@app.post("/api/messages")
+@app.post("/api/hide")
 @login_required
-def send_message():
-    me_id = session["uid"]
-    try:
-        to_handle, _ = normalize_handle(request.form.get("to", ""))
-    except ValueError:
-        return fail("Enter the e-mail of the person you are sending to.")
-    to = db.one("SELECT * FROM users WHERE handle=? AND verified=1", to_handle)
-    if not to:
-        return fail("No one with that e-mail has an account yet.", "no_user")
-    mode = to.get("inbox_mode") or "everyone"
-    if to["id"] != me_id and mode == "nobody":
-        return fail("This person is not accepting messages right now.", "blocked")
-    if to["id"] != me_id and mode == "contacts" and not db.one(
-            "SELECT id FROM messages WHERE sender_id=? AND recipient_id=? LIMIT 1", to["id"], me_id):
-        return fail("This person only accepts messages from people they have written to first.", "blocked")
+def hide_secret():
+    """Hide a message and hand the result straight back. Nothing is saved.
+
+    Image: returns the stego picture as a download. Text: returns {ok, text}.
+    """
     message = request.form.get("message", "")
     if not message.strip():
         return fail("Write the secret message.")
-    subject = (request.form.get("subject") or "").strip()[:80]
     password = _password()
-    carrier = request.form.get("carrier", "image")
+    if password is None:
+        return fail("Enter a password.")
+    if len(password) < MIN_PASSWORD:
+        return fail(f"Use a password of at least {MIN_PASSWORD} characters.")
+    if request.form.get("carrier") == "text":
+        cover = request.form.get("cover", "")
+        if not cover.strip():
+            return fail("Write the visible text.")
+        return jsonify(ok=True, text=txt.hide(cover, message, password))
 
-    if carrier == "text":
-        stego_text = txt.hide(request.form.get("cover", ""), message, password)
-        mid = db.run("INSERT INTO messages(sender_id,recipient_id,carrier,text,subject,locked) VALUES (?,?,?,?,?,?)",
-                     me_id, to["id"], "text", stego_text, subject, int(password is not None))
+    fmt = request.form.get("format", "PNG").upper()
+    if fmt not in FORMATS:
+        return fail("Unknown image type.")
+    cover, _ = _cover_bytes()
+    if cover is None:
+        return fail("Choose a picture from the gallery or upload one.")
+    result = img.embed(cover, message, password=password, output_format=fmt)
+    gid = request.form.get("gallery")
+    if gid:
+        own = _own_gallery_row(gid, session["uid"])
+        stem = own["name"] if own else (gallery_item(gid) or {}).get("name", "picture")
     else:
-        fmt = request.form.get("format", "PNG").upper()
-        if fmt not in FORMATS:
-            return fail("Unknown image type.")
-        cover, gid = _cover_bytes()
-        if cover is None:
-            return fail("Choose a picture from the gallery or upload one.")
-        result = img.embed(cover, message, password=password, output_format=fmt)
-        name = f"{uuid.uuid4().hex}.{FORMATS[fmt]}"
-        (FILES / name).write_bytes(result.image)
-        thumb = Image.open(io.BytesIO(result.image)).convert("RGB")
-        thumb.thumbnail((320, 320))
-        thumb.save(FILES / f"{name}.thumb.jpg", quality=80)
-        mid = db.run("INSERT INTO messages(sender_id,recipient_id,carrier,format,file,subject,locked,gallery_id) VALUES (?,?,?,?,?,?,?,?)",
-                     me_id, to["id"], "image", fmt, name, subject, int(password is not None), gid)
-    return jsonify(ok=True, message=message_view(db.one("SELECT * FROM messages WHERE id=?", mid), me_id))
+        stem = Path(request.files["image"].filename).stem
+    stem = re.sub(r"[^\w\-]+", "-", stem).strip("-")[:40] or "picture"
+    ext = FORMATS[fmt]
+    return send_file(io.BytesIO(result.image), mimetype=MIMES[ext], as_attachment=True,
+                     download_name=f"{stem}-stego.{ext}")
 
 
-@app.get("/api/messages")
+@app.post("/api/reveal")
 @login_required
-def list_messages():
-    me_id = session["uid"]
-    box = "sent" if request.args.get("box") == "sent" else "inbox"
-    if box == "inbox":
-        _purge_old(me_id)
-    if box == "sent":
-        rows = db.all_("SELECT * FROM messages WHERE sender_id=? AND sender_deleted=0 ORDER BY created DESC, id DESC", me_id)
-    else:
-        rows = db.all_("SELECT * FROM messages WHERE recipient_id=? AND recipient_deleted=0 ORDER BY created DESC, id DESC", me_id)
-    return jsonify(ok=True, items=[message_view(m, me_id, box) for m in rows])
+def reveal_secret():
+    """Read the hidden message from an uploaded picture or pasted text.
 
-
-@app.get("/api/messages/<int:mid>")
-@login_required
-def get_message(mid):
-    return jsonify(ok=True, message=message_view(_load_message(mid, session["uid"]), session["uid"]))
-
-
-@app.post("/api/messages/<int:mid>/reveal")
-@login_required
-def reveal_message(mid):
-    me_id = session["uid"]
-    m = _load_message(mid, me_id)
+    Wrong passwords are counted: after TRY_LIMIT in TRY_WINDOW the account is asked to wait.
+    """
     password = _password()
-    if m["carrier"] == "text":
-        text = txt.reveal(m["text"], password)
-    else:
-        text = img.extract((FILES / m["file"]).read_bytes(), password=password).decode("utf-8", errors="replace")
-    if m["recipient_id"] == me_id and m["read_at"] is None:
-        db.run("UPDATE messages SET read_at=datetime('now') WHERE id=?", mid)
-    return jsonify(ok=True, message=text)
-
-
-@app.patch("/api/messages/<int:mid>")
-@login_required
-def update_message(mid):
-    """Pin / unpin, and mark read / unread. Only changes the caller's own side of the message."""
-    me_id = session["uid"]
-    m = _load_message(mid, me_id)
-    d = request.get_json(silent=True) or {}
-    box = d.get("box") if d.get("box") in ("inbox", "sent") else ("sent" if m["sender_id"] == me_id else "inbox")
-    if (box == "sent" and m["sender_id"] != me_id) or (box == "inbox" and m["recipient_id"] != me_id):
-        abort(404)
-    on = lambda v: v in (True, 1, "1", "true", "on")
-    if "pinned" in d:
-        col = "recipient_pinned" if box == "inbox" else "sender_pinned"
-        db.run(f"UPDATE messages SET {col}=? WHERE id=?", int(on(d["pinned"])), mid)
-    if "read" in d and box == "inbox":
-        if on(d["read"]):
-            db.run("UPDATE messages SET read_at=COALESCE(read_at, datetime('now')) WHERE id=?", mid)
+    if password is None:
+        return fail("Enter the password.", "password", 401)
+    mine = f"reveal:{session['uid']}"
+    keys = {mine: TRY_LIMIT, f"reveal-ip:{_ip()}": TRY_LIMIT_IP}
+    if (blocked := _too_many(keys)):
+        return blocked
+    try:
+        if request.form.get("carrier") == "text":
+            text = request.form.get("text", "")
+            if not text.strip():
+                return fail("Paste the text first.")
+            result = jsonify(ok=True, message=txt.reveal(text, password))
         else:
-            db.run("UPDATE messages SET read_at=NULL WHERE id=?", mid)
-    return jsonify(ok=True, message=message_view(db.one("SELECT * FROM messages WHERE id=?", mid), me_id, box))
-
-
-@app.delete("/api/messages/<int:mid>")
-@login_required
-def delete_message(mid):
-    me_id = session["uid"]
-    _load_message(mid, me_id)
-    _delete_for(mid, me_id)
-    return jsonify(ok=True)
-
-
-@app.get("/files/<int:mid>")
-@login_required
-def download(mid):
-    m = _load_message(mid, session["uid"])
-    if not m["file"]:
-        abort(404)
-    ext = FORMATS[m["format"]]
-    return send_file(FILES / m["file"], mimetype={"png": "image/png", "jpg": "image/jpeg", "bmp": "image/bmp"}[ext],
-                     as_attachment=request.args.get("dl") == "1", download_name=f"stego-mail-{mid}.{ext}")
-
-
-@app.get("/files/<int:mid>/thumb")
-@login_required
-def thumb(mid):
-    m = _load_message(mid, session["uid"])
-    if not m["file"]:
-        abort(404)
-    return send_file(FILES / f"{m['file']}.thumb.jpg", mimetype="image/jpeg", max_age=3600)
+            data = _upload("image")
+            if data is None:
+                return fail("Choose a picture first.")
+            try:
+                fmt = (Image.open(io.BytesIO(data)).format or "PNG").upper()
+            except (UnidentifiedImageError, OSError):
+                return fail("That file is not an image we can read.")
+            secret = img.extract(data, password=password).decode("utf-8", errors="replace")
+            result = jsonify(ok=True, message=secret, format="JPEG" if fmt in ("JPEG", "MPO") else fmt)
+    except (img.PasswordError, txt.TextPasswordError):
+        attempts.fail(*keys)
+        raise
+    attempts.clear(mine)
+    return result
 
 
 if __name__ == "__main__":

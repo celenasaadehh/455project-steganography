@@ -107,10 +107,13 @@ class HidingMethodTests(unittest.TestCase):
 
 
 class GreyscaleCoverTests(unittest.TestCase):
-    def test_black_and_white_upload_comes_back_with_different_colour_channels(self):
+    def test_black_and_white_upload_stays_black_and_white(self):
+        # Issue 5 (fixed in Member 1): a greyscale upload used to come back as a colour picture whose
+        # three channels differed, which gave the message away. It now stays a greyscale ("L") file.
         rows = sa.grey_cover_check({name: TILES[name] for name in ("camera-00", "moon-00")}, np.random.default_rng(8))
         self.assertEqual(len(rows), 2)
-        self.assertTrue(all(row["channels_differ_after_10_byte_message"] for row in rows))
+        self.assertFalse(any(row["channels_differ_after_10_byte_message"] for row in rows))
+        self.assertEqual({row["stego_mode"] for row in rows}, {"L"})
 
 
 class KnownCoverTests(unittest.TestCase):

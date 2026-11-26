@@ -1,46 +1,46 @@
 pictures,bits_per_colour_value,method,detector,auc,caught_at_5_percent_false_alarms,mean_estimate_clean,mean_estimate_stego
-photos,0.01,Team's method,Chi-square,0.505,0.059,,
-photos,0.01,Team's method,RS analysis,0.551,0.059,0.0229,0.0269
-photos,0.01,Team's method,SPA,0.552,0.059,0.0255,0.0294
-photos,0.01,Sequential LSB,Chi-square,0.834,0.137,,
-photos,0.01,Sequential LSB,RS analysis,0.605,0.059,0.0229,0.0333
-photos,0.01,Sequential LSB,SPA,0.583,0.059,0.0255,0.0334
-photos,0.01,Random LSB,Chi-square,0.506,0.059,,
-photos,0.01,Random LSB,RS analysis,0.611,0.039,0.0229,0.0331
-photos,0.01,Random LSB,SPA,0.62,0.059,0.0255,0.0361
-photos,0.02,Team's method,Chi-square,0.511,0.059,,
-photos,0.02,Team's method,RS analysis,0.601,0.059,0.0229,0.0326
-photos,0.02,Team's method,SPA,0.599,0.059,0.0255,0.0348
-photos,0.02,Sequential LSB,Chi-square,0.849,0.216,,
-photos,0.02,Sequential LSB,RS analysis,0.653,0.059,0.0229,0.0406
-photos,0.02,Sequential LSB,SPA,0.662,0.078,0.0255,0.0422
+photos,0.01,Team's method,Chi-square,0.502,0.039,,
+photos,0.01,Team's method,RS analysis,0.569,0.039,0.0229,0.0284
+photos,0.01,Team's method,SPA,0.568,0.059,0.0255,0.0319
+photos,0.01,Sequential LSB,Chi-square,0.71,0.118,,
+photos,0.01,Sequential LSB,RS analysis,0.602,0.059,0.0229,0.0337
+photos,0.01,Sequential LSB,SPA,0.597,0.059,0.0255,0.0338
+photos,0.01,Random LSB,Chi-square,0.505,0.059,,
+photos,0.01,Random LSB,RS analysis,0.617,0.059,0.0229,0.0326
+photos,0.01,Random LSB,SPA,0.613,0.059,0.0255,0.0354
+photos,0.02,Team's method,Chi-square,0.506,0.059,,
+photos,0.02,Team's method,RS analysis,0.609,0.039,0.0229,0.0318
+photos,0.02,Team's method,SPA,0.607,0.059,0.0255,0.034
+photos,0.02,Sequential LSB,Chi-square,0.727,0.137,,
+photos,0.02,Sequential LSB,RS analysis,0.653,0.059,0.0229,0.0389
+photos,0.02,Sequential LSB,SPA,0.661,0.059,0.0255,0.0405
 photos,0.02,Random LSB,Chi-square,0.512,0.059,,
-photos,0.02,Random LSB,RS analysis,0.686,0.039,0.0229,0.0427
-photos,0.02,Random LSB,SPA,0.694,0.098,0.0255,0.0446
-photos,0.05,Team's method,Chi-square,0.516,0.039,,
-photos,0.05,Team's method,RS analysis,0.689,0.078,0.0229,0.0443
-photos,0.05,Team's method,SPA,0.697,0.118,0.0255,0.0463
-photos,0.05,Sequential LSB,Chi-square,0.899,0.314,,
-photos,0.05,Sequential LSB,RS analysis,0.792,0.118,0.0229,0.0691
-photos,0.05,Sequential LSB,SPA,0.807,0.157,0.0255,0.0685
-photos,0.05,Random LSB,Chi-square,0.528,0.059,,
-photos,0.05,Random LSB,RS analysis,0.795,0.118,0.0229,0.0714
-photos,0.05,Random LSB,SPA,0.833,0.157,0.0255,0.0735
-photos,0.1,Team's method,Chi-square,0.524,0.039,,
-photos,0.1,Team's method,RS analysis,0.782,0.078,0.0229,0.0655
-photos,0.1,Team's method,SPA,0.785,0.157,0.0255,0.0655
-photos,0.1,Sequential LSB,Chi-square,0.919,0.471,,
-photos,0.1,Sequential LSB,RS analysis,0.876,0.275,0.0229,0.1145
-photos,0.1,Sequential LSB,SPA,0.912,0.431,0.0255,0.1179
-photos,0.1,Random LSB,Chi-square,0.547,0.059,,
-photos,0.1,Random LSB,RS analysis,0.915,0.216,0.0229,0.1246
-photos,0.1,Random LSB,SPA,0.948,0.51,0.0255,0.1242
-photos,0.2,Team's method,Chi-square,0.548,0.078,,
-photos,0.2,Team's method,RS analysis,0.888,0.216,0.0229,0.1079
-photos,0.2,Team's method,SPA,0.897,0.353,0.0255,0.1032
-photos,0.2,Sequential LSB,Chi-square,0.933,0.51,,
-photos,0.2,Sequential LSB,RS analysis,0.969,0.824,0.0229,0.2085
-photos,0.2,Sequential LSB,SPA,0.985,1.0,0.0255,0.2051
-photos,0.2,Random LSB,Chi-square,0.579,0.078,,
-photos,0.2,Random LSB,RS analysis,0.979,0.961,0.0229,0.218
-photos,0.2,Random LSB,SPA,0.993,0.98,0.0255,0.2152
+photos,0.02,Random LSB,RS analysis,0.68,0.078,0.0229,0.0432
+photos,0.02,Random LSB,SPA,0.691,0.098,0.0255,0.0443
+photos,0.05,Team's method,Chi-square,0.507,0.059,,
+photos,0.05,Team's method,RS analysis,0.711,0.078,0.0229,0.048
+photos,0.05,Team's method,SPA,0.692,0.118,0.0255,0.0479
+photos,0.05,Sequential LSB,Chi-square,0.77,0.216,,
+photos,0.05,Sequential LSB,RS analysis,0.78,0.118,0.0229,0.0668
+photos,0.05,Sequential LSB,SPA,0.792,0.196,0.0255,0.0691
+photos,0.05,Random LSB,Chi-square,0.508,0.059,,
+photos,0.05,Random LSB,RS analysis,0.807,0.098,0.0229,0.0711
+photos,0.05,Random LSB,SPA,0.81,0.137,0.0255,0.0696
+photos,0.1,Team's method,Chi-square,0.506,0.059,,
+photos,0.1,Team's method,RS analysis,0.779,0.078,0.0229,0.0635
+photos,0.1,Team's method,SPA,0.804,0.157,0.0255,0.0672
+photos,0.1,Sequential LSB,Chi-square,0.791,0.275,,
+photos,0.1,Sequential LSB,RS analysis,0.883,0.275,0.0229,0.1165
+photos,0.1,Sequential LSB,SPA,0.913,0.392,0.0255,0.1167
+photos,0.1,Random LSB,Chi-square,0.538,0.078,,
+photos,0.1,Random LSB,RS analysis,0.913,0.216,0.0229,0.1247
+photos,0.1,Random LSB,SPA,0.941,0.49,0.0255,0.1211
+photos,0.2,Team's method,Chi-square,0.523,0.039,,
+photos,0.2,Team's method,RS analysis,0.888,0.157,0.0229,0.106
+photos,0.2,Team's method,SPA,0.897,0.333,0.0255,0.106
+photos,0.2,Sequential LSB,Chi-square,0.805,0.353,,
+photos,0.2,Sequential LSB,RS analysis,0.971,0.863,0.0229,0.2093
+photos,0.2,Sequential LSB,SPA,0.986,1.0,0.0255,0.211
+photos,0.2,Random LSB,Chi-square,0.538,0.078,,
+photos,0.2,Random LSB,RS analysis,0.98,0.961,0.0229,0.2251
+photos,0.2,Random LSB,SPA,0.995,1.0,0.0255,0.22

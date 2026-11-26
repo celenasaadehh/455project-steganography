@@ -14,14 +14,14 @@
 
   <!-- ===================== 1. WHAT IS IT ===================== -->
   <section class="m4-card" id="m4-what">
-    <h2>What is Stego Mail?</h2>
-    <p><strong>Steganography</strong> means hiding a secret message inside something that looks ordinary, so nobody even suspects a secret exists. Stego Mail lets you send a friend a normal-looking <strong>picture</strong> or <strong>sentence</strong> with a message hidden inside it.</p>
+    <h2>What is Stego Studio?</h2>
+    <p><strong>Steganography</strong> means hiding a secret message inside something that looks ordinary, so nobody even suspects a secret exists. Stego Studio hides your message inside a normal-looking <strong>picture</strong> or <strong>sentence</strong> that you download and keep or share.</p>
     <div class="m4-two">
       <div class="m4-mini"><h3>Encryption alone</h3><p>Turns the message into gibberish like <code>x7#kQ9…</code>. Anyone can see that <em>something secret</em> is being sent.</p></div>
       <div class="m4-mini"><h3>Steganography</h3><p>The message travels inside a sunset photo. Anyone looking sees only a sunset.</p></div>
     </div>
-    <p>Stego Mail does <strong>both</strong>: it hides the message, and if you add a password it also encrypts it. Even if someone finds the hidden data, they can't read it.</p>
-    <div class="m4-note">The server stores only the picture or text that carries the message, never the message itself. It is read out of the carrier only when the recipient presses <b>Reveal</b>.</div>
+    <p>Stego Studio does <strong>both</strong>: it hides the message, and if you add a password it also encrypts it. Even if someone finds the hidden data, they can't read it.</p>
+    <div class="m4-note">The server stores nothing you hide: the finished picture or text goes straight back to you. The message is read out only when someone uploads it to <b>Reveal</b>.</div>
   </section>
 
   <!-- ===================== 2. IMAGES ===================== -->
@@ -61,7 +61,7 @@
       <tbody>
         <tr><td><b>PNG</b> (recommended)</td><td>Busy areas + matrix embedding (above)</td><td>Thousands of bytes; about 55 KB in a 960×720 gallery picture</td><td>Re-saving as PNG. <b>Not</b> converting to JPEG, resizing, cropping or screenshots.</td></tr>
         <tr><td><b>BMP</b></td><td>Same as PNG</td><td>Same</td><td>Same (bigger files, no transparency)</td></tr>
-        <tr><td><b>JPEG</b></td><td>A different method: it slightly moves the JPEG's compressed frequency values (called <em>QIM</em>) and repeats the bits with error correction</td><td>Much less: about 190–460 bytes in Member 1's tests</td><td>Being re-saved as JPEG (all tests passed down to quality 30). Not resizing. Changes can be more visible.</td></tr>
+        <tr><td><b>JPEG</b></td><td>A different method: it slightly moves the JPEG's compressed frequency values (called <em>QIM</em>) and repeats the bits with error correction</td><td>Much less: about 1.3 KB (1,281 bytes) in a 960 × 720 gallery picture, less in smaller ones</td><td>Being re-saved as JPEG (all tests passed down to quality 30). Not resizing. Changes can be more visible.</td></tr>
       </tbody>
     </table></div>
     <p class="m4-muted">iPhone HEIC photos can be chosen as the starting picture; the result is saved as PNG, BMP or JPEG.</p>
@@ -102,7 +102,7 @@
   <!-- ===================== 5. INTERACTIVE ===================== -->
   <section class="m4-card" id="m4-try">
     <h2>See it step by step</h2>
-    <p class="m4-muted">This runs the <strong>exact same code</strong> as the Send button, then shows you what happened inside. Nothing is sent to anyone.</p>
+    <p class="m4-muted">This runs the <strong>exact same code</strong> as the Hide button, then shows you what happened inside.</p>
 
     <div class="m4-tabs" role="tablist">
       <button class="m4-tab active" data-m4-tab="img" role="tab">Picture</button>
@@ -163,7 +163,7 @@
   <!-- ===================== LAB 2: ROBUSTNESS ===================== -->
   <section class="m4-card" id="m4-robust">
     <h2>🧪 Lab: what breaks the message?</h2>
-    <p>On its way to the recipient, a picture or text can be changed by apps, by editing or by people. This lab hides a message with <strong>our real code</strong>, applies everyday changes one by one, and tries to reveal the message after each.</p>
+    <p>Once it leaves your computer, a picture or text can be changed by apps, by editing or by people. This lab hides a message with <strong>our real code</strong>, applies everyday changes one by one, and tries to reveal the message after each.</p>
     <div class="m4-tabs" role="tablist">
       <button class="m4-tab active" data-m4-rtab="img" role="tab">Picture</button>
       <button class="m4-tab" data-m4-rtab="txt" role="tab">Text</button>
@@ -192,7 +192,7 @@
 
   <!-- ===================== 6. COMPARISON ===================== -->
   <section class="m4-card" id="m4-compare">
-    <h2>How does Stego Mail compare?</h2>
+    <h2>How does Stego Studio compare?</h2>
     <h3>Other ways to hide in pictures</h3>
     <div class="m4-table-wrap"><table class="m4-table">
       <thead><tr><th>Method</th><th>Holds</th><th>Hard to detect?</th><th>Survives JPEG re-save?</th></tr></thead>
@@ -213,7 +213,7 @@
       </tbody>
     </table></div>
     <h3>Compared to existing apps</h3>
-    <p>We looked at popular tools: OpenStego, Steghide, StegOnline, StegCloak and SNOW. They hide messages well, but most are "black boxes": you press a button and get a file back, without seeing what changed or why. Stego Mail adds <strong>sending to other users</strong>, a <strong>built-in gallery</strong>, a <strong>history</strong> of what you did, and this page, which <strong>shows every step</strong> using the real code.</p>
+    <p>We looked at popular tools: OpenStego, Steghide, StegOnline, StegCloak and SNOW. They hide messages well, but most are "black boxes": you press a button and get a file back, without seeing what changed or why. Stego Studio adds a <strong>built-in gallery</strong>, an <strong>X-ray view</strong> of the hidden bits, a <strong>history</strong> of what you did, and this page, which <strong>shows every step</strong> using the real code.</p>
     <div class="m4-note warn"><b>Honest limits.</b> No method is undetectable. A specialist with steganalysis tools may still notice hidden data, especially if they have many of your pictures. A password protects the <em>content</em>, not the fact that something is hidden. Never resize, crop, screenshot or convert a received picture before revealing it.</div>
   </section>
 </div>

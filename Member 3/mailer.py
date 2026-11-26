@@ -51,7 +51,7 @@ def send(to: str, subject: str, text: str) -> None:
     if not configured():
         raise MailError("E-mail is not set up on this server.")
     msg = EmailMessage()
-    msg["From"] = f"Stego Mail <{c['MAIL_FROM']}>"
+    msg["From"] = f"Stego Studio <{c['MAIL_FROM']}>"
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)

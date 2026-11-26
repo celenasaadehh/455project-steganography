@@ -3,7 +3,9 @@
     python -m unittest discover -s "Member 4/tests" -v
 """
 import io
+import os
 import sys
+import tempfile
 import unittest
 import uuid
 from pathlib import Path
@@ -118,31 +120,38 @@ class Labs(unittest.TestCase):
 class HistoryApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import app as main  # Member 3's Flask app (creates Member 3/data if needed)
+        # Point Member 3's website at an empty temporary folder BEFORE it starts,
+        # so the tests never add accounts to the real database in Member 3/data.
+        cls.folder = tempfile.TemporaryDirectory()
+        os.environ["STEGO_VERIFY_EMAIL"] = "0"
+        import db
+        db.DATA = Path(cls.folder.name) / "data"
+        db.DB = db.DATA / "stego.db"
+        import app as main  # Member 3's Flask app
         if "member4" not in main.app.blueprints:
             raise unittest.SkipTest("Member 4 is not connected to app.py yet (see README)")
         cls.app = main.app
         cls.app.testing = True
 
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
     def login(self, client, email):
         r = client.post("/api/auth/register", json={"handle": email, "first_name": "T", "password": "secret123"})
         self.assertTrue(r.get_json()["ok"], r.get_json())
 
-    def test_send_and_reveal_are_logged_without_the_secret(self):
-        a, b = self.app.test_client(), self.app.test_client()
-        ea, eb = f"a{uuid.uuid4().hex[:8]}@t.com", f"b{uuid.uuid4().hex[:8]}@t.com"
-        self.login(a, ea); self.login(b, eb)
-        r = a.post("/api/messages", data={"to": eb, "message": "SECRET-123", "carrier": "text", "cover": "hi there"})
-        self.assertTrue(r.get_json()["ok"])
-        a.post("/api/messages", data={"to": "nobody@nowhere.com", "message": "x", "carrier": "text", "cover": "hi"})
-        mid = b.get("/api/messages?box=inbox").get_json()["items"][0]["id"]
-        self.assertTrue(b.post(f"/api/messages/{mid}/reveal").get_json()["ok"])
+    def test_hide_and_reveal_are_logged_without_the_secret(self):
+        a = self.app.test_client()
+        self.login(a, f"a{uuid.uuid4().hex[:8]}@t.com")
+        r = a.post("/api/hide", data={"message": "SECRET-123", "carrier": "text", "cover": "hi there", "password": "pw-test-1"})
+        stego = r.get_json()["text"]
+        a.post("/api/hide", data={"message": "x", "carrier": "text", "cover": "", "password": "pw-test-1"})          # fails: no cover text
+        self.assertEqual(a.post("/api/reveal", data={"carrier": "text", "text": stego, "password": "pw-test-1"}).get_json()["message"], "SECRET-123")
 
-        ha = a.get("/api/history").get_json()["items"]
-        self.assertEqual([(h["action"], h["success"]) for h in ha], [("hide", False), ("hide", True)])
-        self.assertEqual(ha[1]["message_chars"], 10)
-        hb = b.get("/api/history").get_json()["items"]
-        self.assertEqual((hb[0]["action"], hb[0]["success"], hb[0]["other"]), ("reveal", True, ea))
+        h = a.get("/api/history").get_json()["items"]
+        self.assertEqual([(x["action"], x["success"]) for x in h], [("reveal", True), ("hide", False), ("hide", True)])
+        self.assertEqual(h[2]["message_chars"], 10)
         self.assertNotIn("SECRET-123", a.get("/api/history.csv").get_data(as_text=True))
 
         a.delete("/api/history")

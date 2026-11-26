@@ -4,9 +4,9 @@
   const enc = new TextEncoder();
   const bytes = (s) => enc.encode(s).length;
 
-  const state = { me: null, view: 'inbox', items: [], selected: null, gallery: null, unread: 0, filter: 'all' };
+  const state = { me: null, view: 'hide', gallery: null };
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const authEl = $('#auth'), appEl = $('#app'), composeEl = $('#compose');
+  const authEl = $('#auth'), appEl = $('#app');
 
   // ------------------------------------------------------------ helpers
   async function api(url, { method = 'GET', body, json } = {}) {
@@ -16,6 +16,9 @@
     let res;
     try { res = await fetch(url, opts); }
     catch { return { ok: false, error: 'Cannot reach the server.' }; }
+    return readJson(res);
+  }
+  async function readJson(res) {
     let data;
     try { data = await res.json(); }
     catch { data = { ok: false, error: res.status === 413 ? 'File too large (max 40 MB).' : 'Server error.' }; }
@@ -49,14 +52,6 @@
     else { el.style.backgroundImage = ''; el.textContent = user?.initials || '?'; }
   }
 
-  function fmtTime(s) {
-    const d = new Date(s.replace(' ', 'T') + 'Z');
-    const now = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
-    if (sameDay) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const sameYear = d.getFullYear() === now.getFullYear();
-    return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' });
-  }
   const fmtFull = (s) => new Date(s.replace(' ', 'T') + 'Z').toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 
   // ------------------------------------------------------------ auth
@@ -65,7 +60,7 @@
     $(`#${name}-form input:not([type=hidden])`).focus();
   }
   function showAuth() {
-    appEl.hidden = true; authEl.hidden = false; composeEl.hidden = true;
+    appEl.hidden = true; authEl.hidden = false;
     showAuthForm('login');
   }
   $$('[data-auth]').forEach(b => b.addEventListener('click', () => showAuthForm(b.dataset.auth)));
@@ -84,14 +79,14 @@
     const json = Object.fromEntries(new FormData(form).entries());
     if (!json.handle || !json.password) return status(form, 'Fill in every field.');
     status(form, '');
-    busy(btn, true, url.endsWith('login') ? 'Signing in…' : 'Sending code…');
+    busy(btn, true, url.endsWith('login') ? 'Signing in…' : 'Creating…');
     const res = await api(url, { method: 'POST', json });
     busy(btn, false);
     if (res.code === 'unverified') { form.reset(); return startVerify(res.email, res.mail_sent, res.error); }
     if (!res.ok) return status(form, res.error);
     form.reset();
     if (res.verify) return startVerify(res.email, res.mail_sent);
-    enter(res.user, 0);
+    enter(res.user);
   }
   $('#login-form').addEventListener('submit', (e) => { e.preventDefault(); authSubmit(e.target, '/api/auth/login'); });
   $('#register-form').addEventListener('submit', (e) => { e.preventDefault(); authSubmit(e.target, '/api/auth/register'); });
@@ -108,7 +103,7 @@
     if (!res.ok) { f.code.select(); return status(f, res.error); }
     f.reset();
     toast('Email verified');
-    enter(res.user, 0);
+    enter(res.user);
   });
   $('[data-resend]').addEventListener('click', async () => {
     const f = $('#verify-form');
@@ -120,21 +115,24 @@
   });
   $('#verify-form input[name=code]').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
 
+  function signedOut() {
+    state.me = null; state.gallery = null;
+    resetHide(); resetReveal();
+    showAuth();
+  }
   $$('[data-logout]').forEach(b => b.addEventListener('click', async () => {
     await api('/api/auth/logout', { method: 'POST' });
-    state.me = null; state.items = []; state.selected = null; state.unread = 0;
-    document.title = 'Stego Mail';
-    showAuth();
+    signedOut();
   }));
 
   // ------------------------------------------------------------ app shell
-  function enter(user, unread) {
-    state.me = user; state.unread = null;  // unknown until the first refresh, so sign-in never triggers a "new message" alert
+  function enter(user) {
+    state.me = user;
     authEl.hidden = true; appEl.hidden = false;
     if (user.accent) applyAccent(user.accent, false);
     renderMe();
-    resetCompose();
-    showView('inbox');
+    resetHide(); resetReveal();
+    showView('hide');
   }
 
   function renderMe() {
@@ -142,256 +140,55 @@
     setAvatar($('.me [data-avatar]'), u);
     setAvatar($('.settings [data-avatar]'), u);
     $('[data-me-name]').textContent = u.name;
-    const badge = $('[data-unread]');
-    badge.hidden = !state.unread; badge.textContent = state.unread;
     const pf = $('[data-profile-form]');
     pf.first_name.value = u.first_name; pf.last_name.value = u.last_name; pf.handle.value = u.handle;
-    fillPrefs(); fillNotify(); fillAbout(null); updateTitle();
+    fillPrefs(); fillAbout(null); renderWelcome();
   }
 
-  const TITLES = { inbox: 'Inbox', sent: 'Sent', gallery: 'Gallery', tutorial: 'Learn', history: 'History', settings: 'Settings' };
+  const TITLES = { hide: 'Hide', reveal: 'Reveal', gallery: 'Gallery', tutorial: 'Learn', history: 'History', settings: 'Settings' };
   function showView(name) {
     state.view = name;
     $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name && b.closest('.nav')));
     $('[data-title]').textContent = TITLES[name];
     const icon = $(`.nav [data-nav="${name}"] svg`);          // same icon as the menu item
     $('[data-title-icon]').replaceChildren(...(icon ? [icon.cloneNode(true)] : []));
-    const isMail = name === 'inbox' || name === 'sent';
-    $$('[data-view]').forEach(v => { v.hidden = v.dataset.view !== (isMail ? 'mail' : name); });
-    $('[data-search-wrap]').hidden = !isMail;
+    $$('[data-view]').forEach(v => { v.hidden = v.dataset.view !== name; });
     appEl.classList.remove('side-open');
-    if (isMail) { closeDetail(); loadMail(); }
+    if (name === 'hide' && !state.gallery) fetchGallery();
     if (name === 'gallery') loadGallery();
+    if (name === 'settings') refreshAbout();
   }
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => showView(b.dataset.nav)));
+  $$('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
   $('[data-menu]').addEventListener('click', () => appEl.classList.toggle('side-open'));
   $('.main').addEventListener('click', (e) => { if (appEl.classList.contains('side-open') && !e.target.closest('.menu')) appEl.classList.remove('side-open'); });
 
-  // ------------------------------------------------------------ mail list
-  async function loadMail() {
-    const box = state.view;
-    const res = await api(`/api/messages?box=${box}`);
-    if (!res.ok || state.view !== box) return;
-    state.items = res.items;
-    renderList();
-    refreshUnread();
+  const TIPS = [
+    'Share pictures as files, not photos: apps that shrink photos erase the hidden message.',
+    'Share the password another way, like a phone call.',
+    'PNG holds the most. JPEG holds less but survives a re-save.',
+    'Text mode hides your secret in invisible characters inside a normal sentence.',
+    'Add your own pictures in Gallery to use them again and again.',
+  ];
+  function renderWelcome() {
+    const hour = new Date().getHours();
+    const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    $('[data-hello]').textContent = `${greet}, ${state.me.first_name}`;
+    $('[data-tip]').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
   }
 
-  const FILTERS = {
-    all: () => true,
-    unread: (m) => m.direction === 'inbox' && !m.read,
-    pinned: (m) => m.pinned,
-    locked: (m) => m.locked,
-    image: (m) => m.carrier === 'image',
-    text: (m) => m.carrier === 'text',
-  };
-
-  // Date buckets for the group headers. Pinned messages always come first.
-  function bucket(m) {
-    if (m.pinned) return 'Pinned';
-    const d = new Date(m.created.replace(' ', 'T') + 'Z'), now = new Date();
-    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-    const diff = Math.round((day(now) - day(d)) / 864e5);
-    if (diff <= 0) return 'Today';
-    if (diff === 1) return 'Yesterday';
-    if (diff < 7) return 'This week';
-    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'This month';
-    return 'Earlier';
+  // Image / Text switch, shared by the Hide and Reveal forms
+  function carrierSwitch(form, onChange) {
+    const set = (c) => {
+      $$('[data-carrier]', form).forEach(x => x.classList.toggle('active', x.dataset.carrier === c));
+      $$('[data-carrier-pane]', form).forEach(p => { p.hidden = p.dataset.carrierPane !== c; });
+      onChange(c);
+    };
+    $$('[data-carrier]', form).forEach(b => b.addEventListener('click', () => set(b.dataset.carrier)));
+    return set;
   }
 
-  function visibleItems() {
-    const q = $('[data-search]').value.trim().toLowerCase();
-    const f = FILTERS[state.filter] || FILTERS.all;
-    return state.items
-      .filter(m => f(m) && (!q || [m.with?.name, m.with?.handle, m.subject].join(' ').toLowerCase().includes(q)))
-      .sort((a, b) => (b.pinned - a.pinned) || (a.created < b.created ? 1 : a.created > b.created ? -1 : b.id - a.id));
-  }
-
-  function renderList() {
-    const list = $('[data-list]');
-    $$('.row, .group-h', list).forEach(r => r.remove());
-    const inbox = state.view === 'inbox';
-    $('[data-filter="unread"]').hidden = !inbox;
-    if (!inbox && state.filter === 'unread') state.filter = 'all';
-    $$('[data-filter]').forEach(c => c.classList.toggle('active', c.dataset.filter === state.filter));
-    const counts = { unread: state.items.filter(FILTERS.unread).length, pinned: state.items.filter(FILTERS.pinned).length };
-    $$('[data-count]').forEach(b => { b.textContent = counts[b.dataset.count] || ''; });
-
-    const items = visibleItems();
-    const empty = $('[data-empty]');
-    empty.hidden = items.length > 0;
-    const q = $('[data-search]').value.trim();
-    $('[data-empty-text]').textContent = q || state.filter !== 'all' ? 'No matches' : inbox ? 'No messages yet' : 'Nothing sent yet';
-    const tpl = $('#tpl-row').content;
-    let group = null;
-    items.forEach((m, i) => {
-      const g = bucket(m);
-      if (g !== group) {
-        group = g;
-        const h = document.createElement('div');
-        h.className = 'group-h'; h.textContent = g;
-        list.insertBefore(h, empty);
-      }
-      const row = tpl.firstElementChild.cloneNode(true);
-      row.dataset.id = m.id;
-      row.style.setProperty('--i', Math.min(i, 12));
-      row.classList.toggle('unread', inbox && !m.read);
-      row.classList.toggle('pinned', !!m.pinned);
-      row.classList.toggle('active', state.selected?.id === m.id);
-      setAvatar($('.avatar', row), m.with);
-      $('.row-name', row).textContent = (state.view === 'sent' ? 'To ' : '') + (m.with?.name || m.with?.handle || '?');
-      $('.row-time', row).textContent = fmtTime(m.created);
-      $('.row-kind', row).textContent = (m.locked ? '🔒 ' : '') + (m.carrier === 'image' ? m.format : 'Text');
-      $('.row-subject', row).textContent = m.subject ? `· ${m.subject}` : '';
-      const th = $('.row-thumb', row);
-      if (m.thumb_url) { th.src = m.thumb_url; th.hidden = false; }
-      $('[data-act="read"]', row).hidden = !inbox;
-      $('[data-act="pin"]', row).title = m.pinned ? 'Unpin' : 'Pin';
-      $('[data-act="read"]', row).title = m.read ? 'Mark unread' : 'Mark read';
-      row.addEventListener('click', (e) => {
-        const act = e.target.closest('[data-act]');
-        if (!act) return openMessage(m);
-        e.stopPropagation();
-        if (act.dataset.act === 'pin') updateMessage(m, { pinned: !m.pinned });
-        if (act.dataset.act === 'read') updateMessage(m, { read: !m.read });
-        if (act.dataset.act === 'delete') deleteMessage(m);
-      });
-      row.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openMessage(m); } });
-      list.insertBefore(row, empty);
-    });
-  }
-  $$('[data-filter]').forEach(c => c.addEventListener('click', () => { state.filter = c.dataset.filter; renderList(); }));
-
-  // Pin / unpin and read / unread, saved on the server for this side of the message only.
-  async function updateMessage(m, patch) {
-    const res = await api(`/api/messages/${m.id}`, { method: 'PATCH', json: { ...patch, box: state.view } });
-    if (!res.ok) { toast(res.error); return false; }
-    Object.assign(m, { pinned: res.message.pinned, read: res.message.read });
-    renderList();
-    if (state.selected?.id === m.id) syncTools(m);
-    if ('read' in patch) refreshUnread();
-    if ('pinned' in patch) toast(m.pinned ? 'Pinned' : 'Unpinned');
-    return true;
-  }
-
-  async function deleteMessage(m) {
-    if (!m || !confirm('Delete this message?')) return;
-    const res = await api(`/api/messages/${m.id}`, { method: 'DELETE' });
-    if (!res.ok) return toast(res.error);
-    state.items = state.items.filter(x => x.id !== m.id);
-    if (state.selected?.id === m.id) closeDetail();
-    renderList(); refreshUnread(); toast('Deleted');
-  }
-
-  $('[data-search]').addEventListener('input', renderList);
-  $('[data-search-wrap]').addEventListener('submit', (e) => { e.preventDefault(); renderList(); $('[data-search]').focus(); });
-
-  // ------------------------------------------------------------ detail
-  function closeDetail() {
-    state.selected = null;
-    $('[data-detail]').hidden = true;
-    $('[data-detail-empty]').hidden = false;
-    renderWelcome();
-    $('.mail').classList.remove('showing-detail');
-    $$('.row.active').forEach(r => r.classList.remove('active'));
-  }
-  $('[data-back]').addEventListener('click', closeDetail);
-
-  async function openMessage(m) {
-    state.selected = m;
-    $$('.row').forEach(r => r.classList.toggle('active', Number(r.dataset.id) === m.id));
-    const d = $('[data-detail]');
-    d.hidden = false;
-    $('[data-detail-empty]').hidden = true;
-    $('.mail').classList.add('showing-detail');
-    setAvatar($('[data-d-avatar]'), m.with);
-    $('[data-d-name]').textContent = (m.direction === 'sent' ? 'To ' : '') + (m.with?.name || '?');
-    $('[data-d-sub]').textContent = m.direction === 'sent' ? 'Sent' : 'Received';
-    $('[data-d-time]').textContent = fmtFull(m.created);
-    $('[data-d-subject]').textContent = m.subject || '';
-
-    const im = $('[data-d-img]'), tx = $('[data-d-text]');
-    $('[data-stage]').hidden = m.carrier !== 'image'; tx.hidden = m.carrier !== 'text';
-    xrayOff();
-    if (m.carrier === 'image') im.src = m.file_url; else tx.textContent = m.text;
-    $('[data-xray]').hidden = m.carrier !== 'image';
-    $('[data-show-hidden]').hidden = m.carrier !== 'text';
-    $('[data-show-hidden]').classList.remove('on');
-    $('[data-carrier-note]').textContent = '';
-    syncTools(m);
-
-    const dl = $('[data-download]');
-    dl.hidden = m.carrier !== 'image';
-    if (m.file_url) { dl.href = `${m.file_url}?dl=1`; dl.setAttribute('download', ''); }
-    $('[data-copy-text]').hidden = m.carrier !== 'text';
-
-    const unlock = $('[data-unlock]');
-    unlock.hidden = !m.locked; unlock.reset();
-    status($('[data-d-status]'), '');
-    $('[data-secret]').hidden = true;
-    if (!m.locked) reveal(m, null);
-    else setTimeout(() => unlock.password.focus(), 50);
-  }
-
-  async function reveal(m, password) {
-    const fd = new FormData();
-    if (password) fd.append('password', password);
-    const btn = $('[data-unlock] button');
-    const stat = $('[data-d-status]');
-    status(stat, '');
-    if (m.locked) busy(btn, true, 'Revealing…');
-    const res = await api(`/api/messages/${m.id}/reveal`, { method: 'POST', body: fd });
-    if (m.locked) busy(btn, false);
-    if (state.selected?.id !== m.id) return;
-    if (!res.ok) return status(stat, res.error);
-    const sec = $('[data-secret]');
-    sec.hidden = false;
-    decrypt(sec, res.message);
-    if (m.carrier === 'image' && !reduceMotion) {
-      const st = $('[data-stage]');
-      st.classList.remove('scanning'); void st.offsetWidth; st.classList.add('scanning');
-    }
-    $('[data-unlock]').hidden = true;
-    if (!m.read && m.direction === 'inbox') {
-      m.read = true;
-      renderList();
-      refreshUnread();
-    }
-  }
-  $('[data-unlock]').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const pw = e.target.password.value;
-    if (!pw) return status($('[data-d-status]'), 'Enter the password.');
-    reveal(state.selected, pw);
-  });
-
-  $('[data-delete]').addEventListener('click', () => deleteMessage(state.selected));
-
-  // ---------- reading-pane toolbar
-  function syncTools(m) {
-    const inbox = m.direction === 'inbox';
-    $('[data-reply]').hidden = !inbox;
-    $('[data-mark-unread]').hidden = !inbox;
-    $('[data-pin]').classList.toggle('on', !!m.pinned);
-    $('[data-pin-label]').textContent = m.pinned ? 'Pinned' : 'Pin';
-  }
-  $('[data-pin]').addEventListener('click', () => state.selected && updateMessage(state.selected, { pinned: !state.selected.pinned }));
-  $('[data-mark-unread]').addEventListener('click', async () => {
-    const m = state.selected;
-    if (m && await updateMessage(m, { read: false })) { closeDetail(); toast('Marked unread'); }
-  });
-  $('[data-reply]').addEventListener('click', () => reply(state.selected));
-  function reply(m) {
-    if (!m || m.direction !== 'inbox' || !m.with) return;
-    resetCompose();
-    openCompose();
-    form.to.value = m.with.handle;
-    form.to.dispatchEvent(new Event('input'));
-    form.subject.value = m.subject ? (/^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`).slice(0, 80) : '';
-    setTimeout(() => form.message.focus(), 60);
-  }
-
-  // ---------- the secret "decrypts" into place
+  // ------------------------------------------------------------ the secret "decrypts" into place
   const GLYPHS = '01▚▞▙▟░▒#%&@$§';
   let decryptRun = 0;
   function decrypt(el, text) {
@@ -409,74 +206,76 @@
     requestAnimationFrame(frame);
   }
 
-  // ---------- X-ray lens: magnifies the lowest bit of every colour value,
-  // the layer where an image message lives. Busy areas look like static.
-  const lens = $('[data-lens]'), stageImg = $('[data-d-img]');
-  let lsb = null, lsbFor = null;
-  function xrayOff() {
-    lens.hidden = true;
-    $('[data-xray]').classList.remove('on');
-    $('[data-stage]').classList.remove('xray');
-  }
-  function buildLsb() {
-    if (lsb && lsbFor === stageImg.src) return lsb;
-    const w = stageImg.naturalWidth, h = stageImg.naturalHeight;
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(stageImg, 0, 0);
-    const img = ctx.getImageData(0, 0, w, h), d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      d[i] = (d[i] & 1) * 255; d[i + 1] = (d[i + 1] & 1) * 255; d[i + 2] = (d[i + 2] & 1) * 255; d[i + 3] = 255;
+  // ------------------------------------------------------------ X-ray lens
+  // Magnifies the lowest bit of every colour value, the layer where an image
+  // message lives. Busy areas look like static. One lens per picture stage.
+  function makeXray(key) {
+    const stage = $(`[data-stage="${key}"]`), img = $('img', stage), lens = $('.lens', stage);
+    const btn = $(`[data-xray="${key}"]`), note = $(`[data-note="${key}"]`);
+    let lsb = null, lsbFor = null;
+    function off() {
+      lens.hidden = true; btn.classList.remove('on'); stage.classList.remove('xray'); note.textContent = '';
     }
-    ctx.putImageData(img, 0, 0);
-    lsb = c; lsbFor = stageImg.src;
-    return c;
+    function build() {
+      if (lsb && lsbFor === img.src) return lsb;
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, w, h), d = data.data;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = (d[i] & 1) * 255; d[i + 1] = (d[i + 1] & 1) * 255; d[i + 2] = (d[i + 2] & 1) * 255; d[i + 3] = 255;
+      }
+      ctx.putImageData(data, 0, 0);
+      lsb = c; lsbFor = img.src;
+      return c;
+    }
+    function box() {   // where the picture is drawn inside the <img> (object-fit: contain)
+      const r = img.getBoundingClientRect(), nw = img.naturalWidth, nh = img.naturalHeight;
+      const k = Math.min(r.width / nw, r.height / nh);
+      return { r, k, x: r.left + (r.width - nw * k) / 2, y: r.top + (r.height - nh * k) / 2, w: nw * k, h: nh * k };
+    }
+    function draw(cx, cy) {
+      const b = box(), dpr = devicePixelRatio || 1, R = 74, zoom = 3;
+      const W = Math.round(b.r.width * dpr), H = Math.round(b.r.height * dpr);
+      if (lens.width !== W || lens.height !== H) { lens.width = W; lens.height = H; }
+      const ctx = lens.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, b.r.width, b.r.height);
+      if (cx < b.x || cy < b.y || cx > b.x + b.w || cy > b.y + b.h) return;
+      const lx = cx - b.r.left, ly = cy - b.r.top;
+      const nx = (cx - b.x) / b.k, ny = (cy - b.y) / b.k;   // the point under the cursor, in image pixels
+      const src = (2 * R) / zoom;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.clip();
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#000'; ctx.fillRect(lx - R, ly - R, 2 * R, 2 * R);
+      ctx.drawImage(lsb, nx - src / 2, ny - src / 2, src, src, lx - R, ly - R, 2 * R, 2 * R);
+      ctx.restore();
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.95)';
+      ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.35)';
+      ctx.beginPath(); ctx.arc(lx, ly, R + 2, 0, Math.PI * 2); ctx.stroke();
+    }
+    btn.addEventListener('click', () => {
+      if (!lens.hidden) return off();
+      if (!img.complete || !img.naturalWidth) return toast('Image still loading');
+      try { build(); } catch { return toast('X-ray is not available for this image'); }
+      lens.hidden = false; btn.classList.add('on'); stage.classList.add('xray');
+      note.textContent = 'Move over the picture';
+      const b = box(); draw(b.x + b.w / 2, b.y + b.h / 2);
+    });
+    stage.addEventListener('pointermove', (e) => { if (!lens.hidden) draw(e.clientX, e.clientY); });
+    stage.addEventListener('pointerdown', (e) => { if (!lens.hidden) draw(e.clientX, e.clientY); });
+    stage.addEventListener('pointerleave', (e) => { if (!lens.hidden && e.pointerType === 'mouse') lens.getContext('2d').clearRect(0, 0, lens.width, lens.height); });
+    return { off };
   }
-  function contentBox() {   // where the picture is drawn inside the <img> (object-fit: contain)
-    const r = stageImg.getBoundingClientRect(), nw = stageImg.naturalWidth, nh = stageImg.naturalHeight;
-    const k = Math.min(r.width / nw, r.height / nh);
-    return { r, k, x: r.left + (r.width - nw * k) / 2, y: r.top + (r.height - nh * k) / 2, w: nw * k, h: nh * k };
-  }
-  function drawLens(cx, cy) {
-    const b = contentBox(), dpr = devicePixelRatio || 1, R = 74, zoom = 3;
-    const W = Math.round(b.r.width * dpr), H = Math.round(b.r.height * dpr);
-    if (lens.width !== W || lens.height !== H) { lens.width = W; lens.height = H; }
-    const ctx = lens.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, b.r.width, b.r.height);
-    if (cx < b.x || cy < b.y || cx > b.x + b.w || cy > b.y + b.h) return;
-    const lx = cx - b.r.left, ly = cy - b.r.top;
-    const nx = (cx - b.x) / b.k, ny = (cy - b.y) / b.k;   // the point under the cursor, in image pixels
-    const src = (2 * R) / zoom;
-    ctx.save();
-    ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.clip();
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#000'; ctx.fillRect(lx - R, ly - R, 2 * R, 2 * R);
-    ctx.drawImage(lsb, nx - src / 2, ny - src / 2, src, src, lx - R, ly - R, 2 * R, 2 * R);
-    ctx.restore();
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.95)';
-    ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.35)';
-    ctx.beginPath(); ctx.arc(lx, ly, R + 2, 0, Math.PI * 2); ctx.stroke();
-  }
-  $('[data-xray]').addEventListener('click', () => {
-    if (!lens.hidden) { xrayOff(); $('[data-carrier-note]').textContent = ''; return; }
-    if (!stageImg.complete || !stageImg.naturalWidth) return toast('Image still loading');
-    try { buildLsb(); } catch { return toast('X-ray is not available for this image'); }
-    lens.hidden = false;
-    $('[data-xray]').classList.add('on');
-    $('[data-stage]').classList.add('xray');
-    $('[data-carrier-note]').textContent = 'Move over the picture';
-    const b = contentBox(); drawLens(b.x + b.w / 2, b.y + b.h / 2);
-  });
-  const stage = $('[data-stage]');
-  stage.addEventListener('pointermove', (e) => { if (!lens.hidden) drawLens(e.clientX, e.clientY); });
-  stage.addEventListener('pointerdown', (e) => { if (!lens.hidden) drawLens(e.clientX, e.clientY); });
-  stage.addEventListener('pointerleave', (e) => { if (!lens.hidden && e.pointerType === 'mouse') lens.getContext('2d').clearRect(0, 0, lens.width, lens.height); });
+  const xrayOut = makeXray('out'), xrayIn = makeXray('in');
 
-  // ---------- Show hidden: a text message's invisible characters, drawn as a colour barcode
+  // ------------------------------------------------------------ Show hidden
+  // A text's invisible characters, drawn as a colour barcode.
   // Member 2's characters (U+200B, U+200C, U+2060, U+2063), plus U+200D from the website's first format
-  const ZW = { '\u200b': 0, '\u200c': 1, '\u2060': 2, '\u2063': 3, '\u200d': 3 };
+  const ZW = { '​': 0, '‌': 1, '⁠': 2, '⁣': 3, '‍': 3 };
   function renderHidden(pre, text) {
     pre.textContent = '';
     let i = 0, count = 0;
@@ -498,81 +297,14 @@
   }
   // English packets use 4 characters per byte; Arabic ones (only U+200B and U+2060) use 8.
   // Judge by the hidden run only: a Persian cover has its own U+200C outside the run.
-  const perByte = (text) => { const run = (text.match(/[\u200b\u200c\u200d\u2060\u2063]{8,}/) || [''])[0]; return /[\u200c\u2063\u200d]/.test(run) ? 4 : 8; };
-  $('[data-show-hidden]').addEventListener('click', (e) => {
-    const btn = e.currentTarget, pre = $('[data-d-text]'), m = state.selected;
-    if (!m) return;
-    const on = !btn.classList.contains('on');
-    btn.classList.toggle('on', on);
-    if (on) {
-      const n = renderHidden(pre, m.text);
-      $('[data-carrier-note]').textContent = n ? `${n} invisible characters · ${Math.round(n / perByte(m.text))} bytes` : 'None found';
-    } else { pre.textContent = m.text; $('[data-carrier-note]').textContent = ''; }
-  });
-
-  // ---------- keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (!state.me || appEl.hidden || !composeEl.hidden || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
-    const mail = state.view === 'inbox' || state.view === 'sent';
-    const k = e.key.toLowerCase();
-    if (k === 'c') { e.preventDefault(); openCompose(); }
-    else if (k === '/' && mail) { e.preventDefault(); $('[data-search]').focus(); }
-    else if ((k === 'j' || k === 'k') && mail) {
-      const items = visibleItems();
-      if (!items.length) return;
-      const at = items.findIndex(m => m.id === state.selected?.id);
-      const next = items[Math.max(0, Math.min(items.length - 1, at < 0 ? 0 : at + (k === 'j' ? 1 : -1)))];
-      openMessage(next);
-      $(`.row[data-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest' });
-    }
-    else if (k === 'p' && state.selected) updateMessage(state.selected, { pinned: !state.selected.pinned });
-    else if (k === 'r' && state.selected) { e.preventDefault(); reply(state.selected); }
-    else if (k === 'u' && state.selected?.direction === 'inbox') $('[data-mark-unread]').click();
-    else if (e.key === 'Delete' && state.selected) deleteMessage(state.selected);
-  });
-
-  $('[data-copy-text]').addEventListener('click', async (e) => {
-    try { await navigator.clipboard.writeText(state.selected.text); toast('Copied'); }
-    catch { toast('Select the text and press Ctrl+C'); }
-  });
-
-  const TIPS = [
-    'Send pictures as files, not photos: apps that shrink photos erase the hidden message.',
-    'Share the password another way, like a phone call.',
-    'PNG holds the most. JPEG holds less but survives a re-save.',
-    'Text mode hides your secret in invisible characters inside a normal sentence.',
-    'Add your own pictures in Gallery to use them again and again.',
-  ];
-  function renderWelcome() {
-    const hour = new Date().getHours();
-    const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-    $('[data-empty-hello]').textContent = `${greet}, ${state.me.first_name}`;
-    $('[data-tip]').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
-  }
-
-  async function refreshUnread() {
-    const res = await api('/api/me');
-    if (!res.ok || !res.user) return;
-    const before = state.unread;
-    state.unread = res.unread;
-    const badge = $('[data-unread]');
-    badge.hidden = !res.unread; badge.textContent = res.unread;
-    if (res.unread > before && before !== null) announce(res.unread - before);
-    updateTitle();
-    fillAbout(res);
-  }
-  setInterval(() => {
-    if (!state.me || document.hidden) return;
-    if (state.view === 'inbox' && !state.selected) loadMail(); else refreshUnread();
-  }, 30000);
+  const perByte = (text) => { const run = (text.match(/[​‌‍⁠⁣]{8,}/) || [''])[0]; return /[‌⁣‍]/.test(run) ? 4 : 8; };
+  const hiddenNote = (n, text) => (n ? `${n} invisible characters · ${Math.round(n / perByte(text))} bytes` : 'None found');
 
   // ------------------------------------------------------------ gallery
   async function fetchGallery() {
     const res = await api('/api/gallery');
     if (!res.ok) return false;
     state.gallery = res.items;
-    buildPickGrid();
     return true;
   }
 
@@ -582,7 +314,7 @@
   }
 
   function renderGallery() {
-    const grid = $('[data-gallery]');
+    const grid = $('[data-gallery-grid]');
     $$('.gtile:not(.gadd)', grid).forEach(t => t.remove());
     const tpl = $('#tpl-gallery').content;
     const addTile = $('.gadd', grid);
@@ -591,8 +323,8 @@
       t.dataset.id = g.id;
       $('img', t).src = g.thumb_url; $('img', t).alt = g.name;
       $('.gname', t).textContent = g.name;
-      t.title = 'Send with this picture';
-      const pick = () => openCompose({ gallery: g.id });
+      t.title = 'Hide in this picture';
+      const pick = () => { showView('hide'); setHideCarrier('image'); selectCover({ gallery: g.id }); };
       t.addEventListener('click', (e) => { if (!e.target.closest('.gdel')) pick(); });
       t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
       const del = $('.gdel', t);
@@ -603,8 +335,8 @@
         const res = await api(`/api/gallery/${g.id}`, { method: 'DELETE' });
         if (!res.ok) return toast(res.error);
         state.gallery = state.gallery.filter(x => x.id !== g.id);
-        if (compose.gallery === g.id) selectCover({});
-        buildPickGrid(); renderGallery(); toast('Removed');
+        if (hide.gallery === g.id) selectCover({});
+        renderGallery(); toast('Removed');
       });
       grid.insertBefore(t, addTile);
     }
@@ -622,51 +354,57 @@
     e.target.value = '';
     if (!res.ok) return toast(res.error);
     state.gallery = [...(state.gallery || []), res.item];
-    buildPickGrid(); renderGallery();
+    renderGallery();
     toast(`Added "${res.item.name}"`);
   });
 
-  // ------------------------------------------------------------ compose
-  const form = $('[data-compose]');
-  const compose = { carrier: 'image', gallery: null, file: null, cap: null, toUser: null };
+  // ------------------------------------------------------------ hide
+  const form = $('[data-hide]');
+  const hide = { carrier: 'image', gallery: null, file: null, cap: null, result: null, urls: [] };
 
-  function buildPickGrid() {
-    const grid = $('[data-pick-grid]');
-    $$('.tile:not(.upload)', grid).forEach(t => t.remove());
-    for (const g of state.gallery) {
-      const t = document.createElement('button');
-      t.type = 'button'; t.className = 'tile'; t.dataset.gallery = g.id; t.title = g.name;
-      t.innerHTML = `<img alt="${g.name}" src="${g.thumb_url}">`;
-      t.addEventListener('click', () => selectCover({ gallery: g.id }));
-      grid.insertBefore(t, $('.tile.upload', grid));
-    }
-  }
-
+  // One big upload box. A picture chosen in Gallery shows up in the same box.
+  const coverImg = $('[data-cover-img]'), coverDrop = $('[data-cover-drop]');
+  let coverUrl = null;
   function selectCover({ gallery = null, file = null }) {
-    compose.gallery = gallery; compose.file = file;
-    $$('.tile', form).forEach(t => t.classList.toggle('selected', gallery ? t.dataset.gallery === String(gallery) : !!(file && t.classList.contains('upload'))));
-    const up = $('.tile.upload', form);
-    const img = $('img', up);
-    if (file) { img.src = URL.createObjectURL(file); img.hidden = false; up.classList.add('has-file'); }
-    else { img.hidden = true; up.classList.remove('has-file'); if (!file) $('input[type=file]', up).value = ''; }
+    hide.gallery = gallery; hide.file = file;
+    if (coverUrl) { URL.revokeObjectURL(coverUrl); coverUrl = null; }
+    const g = gallery ? (state.gallery || []).find(x => x.id === gallery) : null;
+    const chosen = !!(g || file);
+    coverDrop.hidden = chosen; $('[data-cover-box]').hidden = !chosen;
+    coverImg.hidden = false;
+    if (file) { coverUrl = URL.createObjectURL(file); coverImg.src = coverUrl; }
+    else if (g) coverImg.src = g.url;
+    else coverImg.removeAttribute('src');
+    $('[data-cover-name]').textContent = g ? g.name : file ? file.name : '';
+    form.image.value = '';
     refreshCapacity();
   }
-  $('.tile.upload input', form).addEventListener('change', (e) => { if (e.target.files[0]) selectCover({ file: e.target.files[0] }); });
+  coverImg.addEventListener('error', () => { if (coverImg.getAttribute('src')) coverImg.hidden = true; });  // e.g. HEIC: no preview, name only
+  form.image.addEventListener('change', (e) => { const f = e.target.files[0]; if (f) selectCover({ file: f }); });
+  $('[data-cover-change]').addEventListener('click', () => form.image.click());
+  coverDrop.addEventListener('dragover', (e) => { e.preventDefault(); coverDrop.classList.add('over'); });
+  coverDrop.addEventListener('dragleave', () => coverDrop.classList.remove('over'));
+  coverDrop.addEventListener('drop', (e) => {
+    e.preventDefault(); coverDrop.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f) selectCover({ file: f });
+  });
 
   let capTimer;
   function refreshCapacity() {
-    compose.cap = null; renderMeter();
+    hide.cap = null; renderMeter();
     clearTimeout(capTimer);
-    if (compose.carrier !== 'image' || (!compose.gallery && !compose.file)) return;
+    if (hide.carrier !== 'image' || (!hide.gallery && !hide.file)) return;
     capTimer = setTimeout(async () => {
+      const key = () => `${hide.gallery}|${hide.file?.name}|${form.format.value}`;
+      const before = key();
       const fd = new FormData();
-      if (compose.gallery) fd.append('gallery', compose.gallery); else fd.append('image', compose.file);
+      if (hide.gallery) fd.append('gallery', hide.gallery); else fd.append('image', hide.file);
       fd.append('format', form.format.value);
-      fd.append('encrypted', form.lock.checked ? '1' : '0');
-      const key = `${compose.gallery}|${compose.file?.name}|${form.format.value}|${form.lock.checked}`;
+      fd.append('encrypted', '1');   // a password is always used
       const res = await api('/api/image/capacity', { method: 'POST', body: fd });
-      if (key !== `${compose.gallery}|${compose.file?.name}|${form.format.value}|${form.lock.checked}`) return;
-      compose.cap = res.ok ? res : { error: res.error };
+      if (key() !== before) return;
+      hide.cap = res.ok ? res : { error: res.error };
       renderMeter();
     }, 120);
   }
@@ -675,97 +413,192 @@
     const text = $('[data-meter-text]'), bar = $('[data-meter-bar]'), span = $('span', bar);
     const used = bytes(form.message.value);
     text.classList.remove('over'); bar.classList.remove('over');
-    if (compose.carrier === 'text') return;
-    if (!compose.gallery && !compose.file) { text.textContent = 'Pick a picture'; span.style.width = '0'; return; }
-    if (!compose.cap) { text.textContent = 'Checking…'; span.style.width = '0'; return; }
-    if (compose.cap.error) { text.textContent = compose.cap.error; text.classList.add('over'); span.style.width = '0'; return; }
-    const max = compose.cap.max_message_bytes;
-    const over = used > max || !compose.cap.can_embed;
+    if (hide.carrier === 'text') return;
+    if (!hide.gallery && !hide.file) { text.textContent = 'Pick a picture'; span.style.width = '0'; return; }
+    if (!hide.cap) { text.textContent = 'Checking…'; span.style.width = '0'; return; }
+    if (hide.cap.error) { text.textContent = hide.cap.error; text.classList.add('over'); span.style.width = '0'; return; }
+    const max = hide.cap.max_message_bytes;
+    const over = used > max || !hide.cap.can_embed;
     span.style.width = `${Math.min(100, max ? (used / max) * 100 : 100)}%`;
     text.classList.toggle('over', over); bar.classList.toggle('over', over);
-    text.textContent = !compose.cap.can_embed ? 'Picture too small' : `${used.toLocaleString()} / ${max.toLocaleString()} characters`;
+    text.textContent = !hide.cap.can_embed ? 'Picture too small' : `${used.toLocaleString()} / ${max.toLocaleString()} characters`;
   }
   form.message.addEventListener('input', renderMeter);
   form.format.addEventListener('change', refreshCapacity);
-  form.lock.addEventListener('change', () => { syncLock(); refreshCapacity(); });
-  function syncLock() { form.password.hidden = !form.lock.checked; $('[data-lock-warn]').hidden = form.lock.checked; }
 
-  $$('[data-carrier]', form).forEach(b => b.addEventListener('click', () => {
-    compose.carrier = b.dataset.carrier;
-    $$('[data-carrier]', form).forEach(x => x.classList.toggle('active', x === b));
-    $$('[data-carrier-pane]', form).forEach(p => { p.hidden = p.dataset.carrierPane !== compose.carrier; });
+  const setHideCarrier = carrierSwitch(form, (c) => {
+    hide.carrier = c;
+    $('[data-hide-btn]').textContent = c === 'image' ? 'Hide and download' : 'Hide';
     renderMeter();
-  }));
-
-  let toTimer;
-  form.to.addEventListener('input', () => {
-    compose.toUser = null;
-    const st = $('[data-to-status]');
-    st.textContent = ''; st.className = 'to-status';
-    clearTimeout(toTimer);
-    const q = form.to.value.trim();
-    if (!q) return;
-    toTimer = setTimeout(async () => {
-      const res = await api(`/api/users/lookup?q=${encodeURIComponent(q)}`);
-      if (form.to.value.trim() !== q) return;
-      if (res.ok && res.user) { compose.toUser = res.user; st.textContent = `✓ ${res.user.name}`; st.className = 'to-status ok'; }
-      else { st.textContent = 'Not found'; st.className = 'to-status bad'; }
-    }, 300);
   });
 
-  function openCompose(opts = {}) {
-    composeEl.hidden = false;
-    if (opts.gallery && state.gallery) selectCover({ gallery: opts.gallery });
-    if (!state.gallery) fetchGallery().then(ok => { if (ok && opts.gallery) selectCover({ gallery: opts.gallery }); });
-    syncLock();
-    setTimeout(() => (form.to.value ? form.message : form.to).focus(), 50);
+  // ---------- result panel
+  function freeUrls() { hide.urls.forEach(u => URL.revokeObjectURL(u)); hide.urls = []; }
+  function clearResult() {
+    freeUrls(); xrayOut.off();
+    hide.result = null;
+    $('[data-out-result]').hidden = true; $('[data-out-empty]').hidden = false;
   }
-  function closeCompose() { composeEl.hidden = true; }
-  function resetCompose() {
+  function showResult(r) {
+    freeUrls(); xrayOut.off();
+    hide.result = r;
+    const isImg = r.carrier === 'image';
+    $('[data-out-empty]').hidden = true; $('[data-out-result]').hidden = false;
+    $('[data-stage="out"]').hidden = !isImg; $('[data-out-text]').hidden = isImg;
+    $('[data-xray="out"]').hidden = !isImg; $('[data-show-hidden="out"]').hidden = isImg;
+    $('[data-show-hidden="out"]').classList.remove('on');
+    $('[data-note="out"]').textContent = '';
+    $('[data-out-download]').hidden = !isImg; $('[data-out-copy]').hidden = isImg; $('[data-out-txt]').hidden = isImg;
+    if (isImg) {
+      const url = URL.createObjectURL(r.blob); hide.urls.push(url);
+      $('[data-out-img]').src = url;
+      const dl = $('[data-out-download]'); dl.href = url; dl.download = r.name;
+      dl.click();   // the picture downloads straight away; the button is there to save it again
+    } else {
+      $('[data-out-text]').textContent = r.text;
+      const url = URL.createObjectURL(new Blob([r.text], { type: 'text/plain;charset=utf-8' })); hide.urls.push(url);
+      const a = $('[data-out-txt]'); a.href = url; a.download = 'hidden-text.txt';
+    }
+  }
+
+  $('[data-show-hidden="out"]').addEventListener('click', (e) => {
+    const btn = e.currentTarget, pre = $('[data-out-text]'), text = hide.result?.text;
+    if (text == null) return;
+    if (btn.classList.toggle('on')) $('[data-note="out"]').textContent = hiddenNote(renderHidden(pre, text), text);
+    else { pre.textContent = text; $('[data-note="out"]').textContent = ''; }
+  });
+  $('[data-out-copy]').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(hide.result.text); toast('Copied'); }
+    catch { toast('Select the text and press Ctrl+C'); }
+  });
+  $('[data-out-try]').addEventListener('click', () => {
+    const r = hide.result;
+    if (!r) return;
+    resetReveal();
+    if (r.carrier === 'image') { setRevealCarrier('image'); setRevealFile(new File([r.blob], r.name, { type: r.blob.type })); }
+    else { setRevealCarrier('text'); rform.text.value = r.text; }
+    showView('reveal');
+    setTimeout(() => rform.password.focus(), 50);
+  });
+
+  function resetHide() {
     form.reset();
-    form.lock.checked = state.me?.prefs?.default_lock ?? true;  // Security → "Lock new messages by default"
-    syncLock();
     selectCover({});
-    compose.toUser = null; compose.carrier = 'image';
-    $('[data-to-status]').textContent = '';
-    $$('[data-carrier]', form).forEach(x => x.classList.toggle('active', x.dataset.carrier === 'image'));
-    $$('[data-carrier-pane]', form).forEach(p => { p.hidden = p.dataset.carrierPane !== 'image'; });
+    setHideCarrier('image');
+    clearResult();
     status(form, '');
   }
-  $$('[data-compose-open]').forEach(b => b.addEventListener('click', () => openCompose()));
-  $$('[data-compose-close]').forEach(b => b.addEventListener('click', closeCompose));
-  composeEl.addEventListener('click', (e) => { if (e.target === composeEl) closeCompose(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!composeEl.hidden) closeCompose(); else if (state.selected) closeDetail(); } });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const to = form.to.value.trim();
-    if (!to) { form.to.focus(); return status(form, 'Who is it for?'); }
+    if (hide.carrier === 'image' && !hide.gallery && !hide.file) return status(form, 'Pick a picture.');
+    if (hide.carrier === 'text' && !form.cover.value.trim()) { form.cover.focus(); return status(form, 'Write the visible text.'); }
     if (!form.message.value.trim()) { form.message.focus(); return status(form, 'Write the secret message.'); }
-    if (form.lock.checked && !form.password.value) { form.password.focus(); return status(form, 'Enter a password, or switch Lock off.'); }
-    if (compose.carrier === 'image' && !compose.gallery && !compose.file) return status(form, 'Pick a picture.');
-    if (compose.carrier === 'text' && !form.cover.value.trim()) { form.cover.focus(); return status(form, 'Write the visible text.'); }
+    if (!form.password.value) { form.password.focus(); return status(form, 'Enter a password.'); }
+    if (form.password.value.length < 6) { form.password.focus(); return status(form, 'Use a password of at least 6 characters.'); }
 
     const fd = new FormData();
-    fd.append('to', to);
-    fd.append('subject', form.subject.value);
     fd.append('message', form.message.value);
-    fd.append('carrier', compose.carrier);
-    if (form.lock.checked) fd.append('password', form.password.value);
-    if (compose.carrier === 'image') {
+    fd.append('carrier', hide.carrier);
+    fd.append('password', form.password.value);
+    if (hide.carrier === 'image') {
       fd.append('format', form.format.value);
-      if (compose.gallery) fd.append('gallery', compose.gallery); else fd.append('image', compose.file);
+      if (hide.gallery) fd.append('gallery', hide.gallery); else fd.append('image', hide.file);
     } else fd.append('cover', form.cover.value);
 
-    const btn = $('button[type=submit]', form);
+    const btn = $('[data-hide-btn]');
     status(form, '');
-    busy(btn, true, 'Sending…');
-    const res = await api('/api/messages', { method: 'POST', body: fd });
+    busy(btn, true, 'Hiding…');
+    let res;
+    try { res = await fetch('/api/hide', { method: 'POST', body: fd }); }
+    catch { busy(btn, false); return status(form, 'Cannot reach the server.'); }
+    const isFile = res.ok && !(res.headers.get('Content-Type') || '').includes('json');
+    if (isFile) {
+      const blob = await res.blob();
+      busy(btn, false);
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="?([^";]+)"?/)?.[1] || 'stego.png';
+      showResult({ carrier: 'image', blob, name });
+      return toast('Downloaded');
+    }
+    const data = await readJson(res);
     busy(btn, false);
-    if (!res.ok) { if (res.code === 'no_user') form.to.focus(); return status(form, res.error); }
-    closeCompose(); resetCompose();
-    toast(`Sent to ${res.message.with?.name || to}`);
-    if (state.view === 'sent' || (state.view === 'inbox' && res.message.to_me)) loadMail(); else refreshUnread();
+    if (!data.ok) return status(form, data.error);
+    showResult({ carrier: 'text', text: data.text });
+    toast('Done');
+  });
+
+  // ------------------------------------------------------------ reveal
+  const rform = $('[data-reveal]');
+  const rev = { carrier: 'image', file: null, url: null };
+
+  const setRevealCarrier = carrierSwitch(rform, (c) => { rev.carrier = c; clearSecret(); });
+
+  function clearSecret() { decryptRun++; $('[data-secret]').hidden = true; status(rform, ''); }
+
+  function setRevealFile(file) {
+    if (rev.url) URL.revokeObjectURL(rev.url);
+    rev.file = file; rev.url = file ? URL.createObjectURL(file) : null;
+    xrayIn.off(); clearSecret();
+    $('[data-drop]').hidden = !!file; $('[data-r-box]').hidden = !file;
+    const im = $('[data-r-img]');
+    if (file) im.src = rev.url; else im.removeAttribute('src');
+  }
+  rform.image.addEventListener('change', () => { if (rform.image.files[0]) setRevealFile(rform.image.files[0]); rform.image.value = ''; });
+  $('[data-r-change]').addEventListener('click', () => rform.image.click());
+  const drop = $('[data-drop]');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault(); drop.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f) setRevealFile(f);
+  });
+
+  // Show hidden on the pasted text: swap the box for the barcode view while on
+  const showIn = $('[data-show-hidden="in"]'), rText = $('[data-r-text]');
+  function hiddenViewOff() { showIn.classList.remove('on'); rText.hidden = true; rform.text.hidden = false; $('[data-note="in-text"]').textContent = ''; }
+  showIn.addEventListener('click', () => {
+    if (showIn.classList.contains('on')) return hiddenViewOff();
+    const text = rform.text.value;
+    if (!text) return toast('Paste the text first');
+    showIn.classList.add('on'); rform.text.hidden = true; rText.hidden = false;
+    $('[data-note="in-text"]').textContent = hiddenNote(renderHidden(rText, text), text);
+  });
+  rText.addEventListener('click', hiddenViewOff);
+  rform.text.addEventListener('input', clearSecret);
+
+  function resetReveal() {
+    rform.reset(); hiddenViewOff();
+    setRevealFile(null);
+    setRevealCarrier('image');
+  }
+
+  rform.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append('carrier', rev.carrier);
+    if (rev.carrier === 'image') {
+      if (!rev.file) return status(rform, 'Choose a picture first.');
+      fd.append('image', rev.file);
+    } else {
+      if (!rform.text.value.trim()) { rform.text.focus(); return status(rform, 'Paste the text first.'); }
+      fd.append('text', rform.text.value);
+    }
+    if (!rform.password.value) { rform.password.focus(); return status(rform, 'Enter the password.'); }
+    fd.append('password', rform.password.value);
+    const btn = $('button[type=submit]', rform);
+    clearSecret();
+    busy(btn, true, 'Revealing…');
+    const res = await api('/api/reveal', { method: 'POST', body: fd });
+    busy(btn, false);
+    if (!res.ok) { if (res.code === 'password') rform.password.focus(); return status(rform, res.error); }
+    const sec = $('[data-secret]');
+    sec.hidden = false;
+    decrypt(sec, res.message);
+    if (rev.carrier === 'image' && !reduceMotion) {
+      const st = $('[data-stage="in"]');
+      st.classList.remove('scanning'); void st.offsetWidth; st.classList.add('scanning');
+    }
   });
 
   // ------------------------------------------------------------ settings
@@ -803,7 +636,7 @@
   });
 
   // ---------- profile picture cropper: drag to move, slider or wheel to zoom.
-  // The square stage is what gets saved; the circle shows what others will see.
+  // The square stage is what gets saved; the circle shows the profile picture.
   const cropEl = $('#cropper'), cropStage = $('[data-crop-stage]'), cropImg = $('[data-crop-img]'), cropZoom = $('[data-crop-zoom]');
   const crop = { file: null, url: null, w: 0, h: 0, S: 0, base: 1, z: 1, x: 0, y: 0 };
   function cropClamp() {
@@ -907,7 +740,7 @@
     $$('[data-subpanel]').forEach(p => { p.hidden = p.dataset.subpanel !== b.dataset.sub; });
   }));
 
-  // Account preferences (privacy / security): saved on change.
+  // Account preferences: saved on change.
   function fillPrefs() {
     const p = state.me?.prefs || {};
     $$('[data-pref]').forEach(el => {
@@ -920,55 +753,7 @@
     const res = await api('/api/me', { method: 'POST', json: { [el.dataset.pref]: value } });
     if (!res.ok) { toast(res.error); fillPrefs(); return; }
     state.me = res.user; toast('Saved');
-    if (el.dataset.pref === 'auto_delete_days' && state.view === 'inbox') loadMail();
   }));
-
-  // Compact list (this browser only)
-  function applyDensity(on) {
-    if (on) document.documentElement.dataset.density = 'compact'; else delete document.documentElement.dataset.density;
-    $('[data-density]').checked = on;
-    try { localStorage.setItem('density', on ? 'compact' : ''); } catch {}
-  }
-  $('[data-density]').addEventListener('change', (e) => applyDensity(e.target.checked));
-  let savedDensity = ''; try { savedDensity = localStorage.getItem('density') || ''; } catch {}
-  applyDensity(savedDensity === 'compact');
-
-  // Notifications (this browser only)
-  let notify = { desktop: false, sound: false, title: true };
-  try { notify = { ...notify, ...JSON.parse(localStorage.getItem('notify') || '{}') }; } catch {}
-  function saveNotify() { try { localStorage.setItem('notify', JSON.stringify(notify)); } catch {} }
-  function fillNotify() { $$('[data-notify]').forEach(el => { el.checked = !!notify[el.dataset.notify]; }); }
-  $$('[data-notify]').forEach(el => el.addEventListener('change', async () => {
-    const key = el.dataset.notify;
-    if (key === 'desktop' && el.checked) {
-      if (!('Notification' in window)) { toast('This browser cannot show notifications'); el.checked = false; return; }
-      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-      if (perm !== 'granted') { toast('Notifications are blocked for this site'); el.checked = false; return; }
-    }
-    notify[key] = el.checked; saveNotify();
-    if (key === 'title') updateTitle();
-  }));
-  function chime() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.0001;
-      o.connect(g); g.connect(ctx.destination); o.start();
-      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
-      o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-      o.stop(ctx.currentTime + 0.6);
-    } catch {}
-  }
-  function announce(count) {
-    if (notify.sound) chime();
-    if (notify.desktop && 'Notification' in window && Notification.permission === 'granted') {
-      const n = new Notification('Stego Mail', { body: count === 1 ? 'New message' : `${count} new messages`, icon: '/static/favicon.svg', tag: 'stego-new' });
-      n.onclick = () => { window.focus(); showView('inbox'); n.close(); };
-    }
-  }
-  function updateTitle() { document.title = notify.title && state.me && state.unread ? `(${state.unread}) Stego Mail` : 'Stego Mail'; }
-  $('[data-notify-test]').addEventListener('click', () => { if (!notify.desktop && !notify.sound) return toast('Turn on a notification first'); announce(1); });
 
   // Delete account
   $('[data-delete-account]').addEventListener('submit', async (e) => {
@@ -978,13 +763,17 @@
     if (!confirm('Delete your account and everything in it? This cannot be undone.')) return;
     const res = await api('/api/me', { method: 'DELETE', json: { password: f.password.value } });
     if (!res.ok) return status(f, res.error);
-    f.reset(); state.me = null; state.items = []; state.selected = null; state.gallery = null;
-    showAuth(); toast('Account deleted');
+    f.reset();
+    signedOut(); toast('Account deleted');
   });
 
   function fillAbout(res) {
     if (state.me?.created) $('[data-about=created]').textContent = fmtFull(state.me.created).split(',')[0];
-    for (const k of ['received', 'sent', 'pictures']) if (res && k in res) $(`[data-about=${k}]`).textContent = res[k];
+    if (res && 'pictures' in res) $('[data-about=pictures]').textContent = res.pictures;
+  }
+  async function refreshAbout() {
+    const res = await api('/api/me');
+    if (res.ok && res.user) fillAbout(res);
   }
 
   // ------------------------------------------------------------ start

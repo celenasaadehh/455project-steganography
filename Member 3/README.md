@@ -1,17 +1,17 @@
-# Stego Mail (Member 3)
+# Stego Studio (Member 3)
 
-An e-mail style website where people send each other secret messages hidden inside pictures or ordinary text.
+A website for hiding a secret message inside a picture or an ordinary sentence, downloading the result, and revealing it again later. Nothing is sent to anyone: you keep or share the file yourself.
 
-- **Accounts.** Sign up with an e-mail address and a password. Users sign in on every visit. First and last name are saved with the account. Optional profile picture (circle, top left). E-mail verification (a 6-digit code sent to the address; 10-minute expiry, 5 tries, resend after 45 s) is built in but **switched off for now**; start the server with `STEGO_VERIFY_EMAIL=1` to turn it on.
-- **Inbox / Sent / Gallery / Tutorial / Settings** in the left column.
-- **+ button** opens a new message: recipient e-mail, subject, a picture from the built-in gallery of 10 or an upload (PNG, JPEG, BMP, iPhone HEIC), or *Text* mode which hides the secret in invisible characters inside a visible sentence. Optional password lock.
-- **Inbox** shows the picture as received. The hidden message is revealed on open (unlocked) or after the password is entered (locked). Unread badge, search, delete, download, dark mode.
+- **Accounts.** Sign up with an e-mail address and a password. Users sign in on every visit. Optional profile picture. E-mail verification (a 6-digit code) is built in but **switched off for now**; start the server with `STEGO_VERIFY_EMAIL=1` to turn it on.
+- **Hide.** Pick a picture from the built-in gallery of 10, one of your own, or an upload (PNG, JPEG, BMP, iPhone HEIC). Write the secret and a password (at least 6 characters), choose PNG, JPEG or BMP, and the stego picture downloads straight away. A black-and-white picture stays black-and-white. *Text* mode hides the secret in invisible characters inside a visible sentence; copy it or save it as `.txt`. A meter shows how much the picture can hold, and **X-ray** / **Show hidden** let you see where the message went.
+- **Reveal.** Upload (or drop) a stego picture, or paste stego text, enter the password, and the message appears. After 5 wrong passwords in 15 minutes the account has to wait; Sign in is limited the same way.
+- **Gallery / Learn / History / Settings** in the left column. Learn and History come from Member 4.
 
-Only the stego picture or stego text is stored on the server. The hidden message itself is never stored; it is extracted on demand, so a locked message cannot be read without its password, not even from the database.
+The server stores **nothing you hide or reveal**: Hide builds the picture or text in memory and returns it to the browser; Reveal reads the upload and forgets it.
 
-## Run it (Windows)
+## Run it
 
-From this `Member 3` folder:
+From this `Member 3` folder, on **Windows**:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -19,11 +19,19 @@ py -3.11 -m venv .venv
 .venv\Scripts\python.exe app.py
 ```
 
-Open http://127.0.0.1:5000. Create two accounts (use a private window for the second) to send messages between them.
+On **macOS / Linux**:
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python app.py
+```
+
+Open http://127.0.0.1:5000, create an account, hide a message, then open the downloaded picture in **Reveal**.
 
 ### Sending real verification e-mails
 
-Only needed when verification is switched on. Copy `mail.env.example` to `data/mail.env` and fill in the Gmail address that will send the codes and its **App Password** (Google Account → Security → 2-Step Verification → App passwords). Start with `$env:STEGO_VERIFY_EMAIL = "1"; .venv\Scripts\python.exe app.py`. Without `mail.env` the code is printed in the server window instead, so the flow can still be tried locally.
+Only needed when verification is switched on. Copy `mail.env.example` to `data/mail.env` and fill in the Gmail address that will send the codes and its **App Password** (Google Account → Security → 2-Step Verification → App passwords). Start with `$env:STEGO_VERIFY_EMAIL = "1"; .venv\Scripts\python.exe app.py` (Windows) or `STEGO_VERIFY_EMAIL=1 .venv/bin/python app.py` (macOS / Linux). Without `mail.env` the code is printed in the server window instead.
 
 JPEG needs Member 1's compiled helper at `Member 1\build\jpegtool.exe` (see Member 1's technical guide). PNG, BMP and text work without it.
 
@@ -31,13 +39,13 @@ JPEG needs Member 1's compiled helper at `Member 1\build\jpegtool.exe` (see Memb
 
 | File | Purpose |
 |---|---|
-| `app.py` | Flask server: pages, auth, profile, gallery, messages API |
-| `db.py` | SQLite schema and helpers (`data/stego.db`) |
+| `app.py` | Flask server: pages, auth, profile, gallery, hide and reveal API |
+| `db.py` | SQLite schema and helpers (`data/stego.db`): accounts and own gallery pictures |
 | `mailer.py`, `mail.env.example` | SMTP sending of verification codes; settings template |
-| `templates/index.html` | The single page: sign-in, app shell, compose sheet |
+| `templates/index.html` | The single page: sign-in, app shell, Hide and Reveal |
 | `static/app.css`, `static/app.js` | Design (blue and white, dark mode) and page behaviour |
 | `static/gallery/` | The 10 built-in pictures (`tools/make_gallery.py` regenerates them) |
-| `data/` | Created at run time: database, sent files, avatars, session key. Not committed. |
+| `data/` | Created at run time: database, own gallery pictures, avatars, session key. Not committed. |
 
 Image steganography is imported from `../Member 1/image_stego.py` and text steganography from `../Member 2/text_stega.py`; nothing is copied.
 
@@ -46,11 +54,8 @@ Image steganography is imported from `../Member 1/image_stego.py` and text stega
 | Method and path | Purpose |
 |---|---|
 | `POST /api/auth/register`, `/verify`, `/resend`, `/login`, `/logout` · `GET /api/me` | Accounts, e-mail code, session |
-| `POST /api/me`, `POST/DELETE /api/me/avatar` | Name, password, profile picture |
-| `GET /api/users/lookup?q=` | Check a recipient exists |
-| `GET /api/gallery` · `POST /api/image/capacity` | Built-in pictures and how much a picture can hold |
-| `POST /api/messages` · `GET /api/messages?box=inbox\|sent` | Send and list |
-| `POST /api/messages/<id>/reveal` · `DELETE /api/messages/<id>` | Extract the hidden message; delete |
-| `GET /files/<id>`, `/files/<id>/thumb`, `/avatars/<uid>` | Files, only for sender and recipient |
-
-Accounts are identified by a verified e-mail address. This is not Google OAuth (that needs a Google Cloud client ID); ownership is proven by the e-mailed code instead.
+| `POST /api/me`, `POST/DELETE /api/me/avatar`, `DELETE /api/me` | Name, password, preferences, profile picture, delete account |
+| `GET/POST /api/gallery`, `DELETE /api/gallery/<id>` | Built-in and own pictures |
+| `POST /api/image/capacity` | How much a picture can hold |
+| `POST /api/hide` | `carrier=image`: returns the stego picture as a download. `carrier=text`: returns `{ok, text}` |
+| `POST /api/reveal` | Picture upload or pasted text (+ password) → `{ok, message}` |

@@ -1,4 +1,4 @@
-/* Member 4: Learn walkthroughs + History tab for Stego Mail. */
+/* Member 4: Learn walkthroughs + History tab for Stego Studio. */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -179,7 +179,7 @@
           <p class="m4-muted">A high PSNR means invisible to people, not invisible to detection software.</p>`;
       } },
       { title: 'Reveal the message', render: el => {
-        el.innerHTML = `<p>The recipient's app reverses everything, using only the picture${t.encrypted ? ' and the password' : ''}:</p>
+        el.innerHTML = `<p>Reveal reverses everything, using only the picture${t.encrypted ? ' and the password' : ''}:</p>
           <ol class="m4-ol"><li>Rebuild the busy-area map (it ignores last bits, so it's identical).</li>
           <li>Read the header groups in the public order, XOR each group → ${t.header.bytes} bytes. Check the tag <code>ILAB</code> and the CRC.</li>
           <li>Use the salt${t.encrypted ? ' + password' : ''} to find the message groups in the same random order and read them.</li>
@@ -424,7 +424,7 @@
         <td>${esc(d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }))}<small>${esc(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</small></td>
         <td><span class="m4-badge ${r.action}">${r.action === 'hide' ? 'Hide' : 'Reveal'}</span></td>
         <td>${r.carrier === 'image' ? 'Picture' : 'Text'}<small>${esc(r.method)}</small></td>
-        <td>${r.action === 'hide' ? 'To ' : 'From '}${esc(r.other || '—')}</td>
+        <td>${esc(r.other || '—')}</td>
         <td>${r.message_chars == null ? '—' : r.message_chars + ' chars'}</td>
         <td>${r.locked ? '🔒' : '—'}</td>
         <td><span class="m4-badge ${r.success ? 'ok' : 'fail'}">${r.success ? 'Success' : 'Failed'}</span>${r.error ? `<small>${esc(r.error)}</small>` : ''}</td>

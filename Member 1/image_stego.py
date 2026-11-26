@@ -269,8 +269,16 @@ class _Spatial:
         self.alpha = a[:,:,3].copy() if c == 4 else None
         if self.alpha is not None: mask = mask & (self.alpha>0)
         pixels = np.flatnonzero(mask).astype(np.int32,copy=False)
-        self.rgb = np.ascontiguousarray(a[:,:,:3]).reshape(-1)
-        self.indices = (pixels[:,None]*3+np.arange(3,dtype=np.int32)).reshape(-1)
+        # A black-and-white picture (red = green = blue everywhere) keeps ONE value per pixel and is
+        # saved in grey mode again: changing the three channels separately would add colour and give
+        # the message away. The reader makes the same check on the grey file, so both sides agree.
+        self.grey = bool((a[:,:,0]==a[:,:,1]).all() and (a[:,:,1]==a[:,:,2]).all())
+        if self.grey:
+            self.rgb = np.ascontiguousarray(a[:,:,0]).reshape(-1)
+            self.indices = pixels
+        else:
+            self.rgb = np.ascontiguousarray(a[:,:,:3]).reshape(-1)
+            self.indices = (pixels[:,None]*3+np.arange(3,dtype=np.int32)).reshape(-1)
         self.groups = len(self.indices)//7
         self.hg = (HEADER_BYTES*8+2)//3
         self.order = _rank(b'spatial-public-header-v1'+struct.pack('>II',w,h),self.groups)
@@ -306,6 +314,10 @@ class _Spatial:
         return np.packbits(bits[:n*8]).tobytes()
 
     def render(self,fmt):
+        if self.grey:
+            grey=Image.fromarray(self.rgb.reshape(*self.shape))
+            if self.alpha is not None and fmt=='PNG': grey=Image.merge('LA',(grey,Image.fromarray(self.alpha)))
+            return _save(grey,fmt)
         rgb=Image.fromarray(self.rgb.reshape(*self.shape,3))
         if self.alpha is not None and fmt=='PNG': rgb.putalpha(Image.fromarray(self.alpha))
         return _save(rgb,fmt,**(_icc(self.im) if fmt == 'PNG' else {}))

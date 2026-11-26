@@ -1,4 +1,4 @@
-"""Member 4: Educational & convenience features for Stego Mail.
+"""Member 4: Educational & convenience features for Stego Studio.
 
 Plugs into Member 3's Flask app with two lines in app.py:
 
@@ -10,7 +10,7 @@ It adds:
                       /api/learn/detect, /api/learn/robust-image, /api/learn/robust-text (labs.py)
                       (step-by-step traces of the team's REAL algorithms, see learn_trace.py)
   * History tab    -> /api/history (list, delete one, clear, CSV export)
-                      Every Send and Reveal is recorded automatically. The secret message
+                      Every Hide and Reveal is recorded automatically. The secret message
                       itself is never stored, only its length.
   * Static files   -> /member4/static/... and templates under templates/member4/
 """
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS member4_history (
   method TEXT NOT NULL,          -- e.g. 'Spatial matrix embedding (PNG)'
   locked INTEGER NOT NULL DEFAULT 0,
   message_chars INTEGER,         -- length only, never the message
-  other TEXT NOT NULL DEFAULT '',-- recipient (hide) or sender (reveal)
+  other TEXT NOT NULL DEFAULT '',-- file name of the picture (or empty for text)
   success INTEGER NOT NULL,
   error TEXT NOT NULL DEFAULT ''
 );
@@ -83,7 +83,7 @@ def _main_app_module():
 
 
 def _cover_for_learn() -> bytes | None:
-    """Same picture choice as the Compose window: gallery picture (built-in or own) or an upload."""
+    """Same picture choice as the Hide form: gallery picture (built-in or own) or an upload."""
     cover, _ = _main_app_module()._cover_bytes()
     return cover
 
@@ -208,10 +208,10 @@ def log(uid: int, action: str, carrier: str, method: str, *, locked: bool, messa
 
 
 def _record(response):
-    """Runs after every request. Records Member 3's Send and Reveal calls; changes nothing else."""
+    """Runs after every request. Records Member 3's Hide and Reveal calls; changes nothing else."""
     try:
         ep, uid = request.endpoint, g.get("m4_uid")
-        if ep not in ("send_message", "reveal_message", "delete_me") or not uid or request.method not in ("POST", "DELETE"):
+        if ep not in ("hide_secret", "reveal_secret", "delete_me") or not uid or request.method not in ("POST", "DELETE"):
             return response
         data = response.get_json(silent=True) or {}
         ok = response.status_code == 200 and data.get("ok") is True
@@ -219,22 +219,26 @@ def _record(response):
             if ok:
                 db.run("DELETE FROM member4_history WHERE user_id=?", uid)
             return response
-        error = "" if ok else str(data.get("error", "Failed"))
-        if ep == "send_message":
-            carrier = "text" if request.form.get("carrier") == "text" else "image"
+        carrier = "text" if request.form.get("carrier") == "text" else "image"
+        upload = request.files.get("image")
+        other = (upload.filename or "") if (carrier == "image" and upload) else ""
+        locked = bool(request.form.get("password"))
+        if ep == "hide_secret":
+            # A hidden picture comes back as the file itself (not JSON): status 200 means it worked.
+            ok = response.status_code == 200 and (response.mimetype != "application/json" or data.get("ok") is True)
+            error = "" if ok else str(data.get("error", "Failed"))
             fmt = (request.form.get("format") or "PNG").upper()
             method = TEXT_METHOD if carrier == "text" else IMAGE_METHODS.get(fmt, fmt)
-            log(uid, "hide", carrier, method, locked=bool(request.form.get("password")),
-                message_chars=len(request.form.get("message", "")), other=request.form.get("to", "").strip(),
-                success=ok, error=error)
+            if carrier == "image" and request.form.get("gallery"):
+                other = "Gallery picture"
+            log(uid, "hide", carrier, method, locked=locked,
+                message_chars=len(request.form.get("message", "")), other=other, success=ok, error=error)
         else:
-            m = db.one("SELECT m.*, u.handle AS sender FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?",
-                       request.view_args.get("mid"))
-            if not m:
-                return response
-            method = TEXT_METHOD if m["carrier"] == "text" else IMAGE_METHODS.get(m["format"] or "PNG", m["format"])
-            log(uid, "reveal", m["carrier"], method, locked=bool(m["locked"]),
-                message_chars=len(data["message"]) if ok else None, other=m["sender"], success=ok, error=error)
+            error = "" if ok else str(data.get("error", "Failed"))
+            fmt = (data.get("format") or "PNG").upper()
+            method = TEXT_METHOD if carrier == "text" else IMAGE_METHODS.get(fmt, "Spatial matrix embedding")
+            log(uid, "reveal", carrier, method, locked=locked,
+                message_chars=len(data["message"]) if ok else None, other=other, success=ok, error=error)
     except Exception as exc:  # history must never break the main app
         print("[member4] history not recorded:", exc)
     return response

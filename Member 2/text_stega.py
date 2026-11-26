@@ -4,7 +4,7 @@
 #
 #An optional password locks the secret with AES-256-GCM (key from scrypt, the same
 #settings as Member 1's image module). This module is the text carrier of the
-#Stego Mail website: the site calls hide() / reveal(), which are encode_text() /
+#Stego Studio website: the site calls hide() / reveal(), which are encode_text() /
 #decode_text() with the website's names.
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ MAX_SECRET_BYTES = 65535
 # A hidden message is always ONE long run of invisible characters. Persian words use
 # U+200C and emoji use U+200D one at a time, so short runs belong to the carrier.
 MIN_RUN = 8
-# Stego Mail's first text format ("ZW", 4 symbols incl. U+200D) is still readable,
+# The website's first text format ("ZW", 4 symbols incl. U+200D) is still readable,
 # so messages sent before the website switched to this module keep opening.
 _LEGACY_SYMBOLS = ("​", "‌", "‍", "⁠")
 _HIDDEN = set(SYMBOLS) | set(ARABIC_BIT_SYMBOLS) | set(_LEGACY_SYMBOLS)
@@ -116,15 +116,26 @@ def _key(password: str, salt: bytes) -> bytes:
                           dklen=32, maxmem=64 * 1024 * 1024)
 
 
+def _clear_side(carrier: str, spot: int, step: int) -> bool:
+    """True if, walking from `spot` over spaces only, the next character is visible (or the text ends).
+
+    A hidden run may contain spaces (see _runs), so one of the carrier's own invisible
+    characters that is only spaces away from the run would join it.
+    """
+    index = spot - 1 if step < 0 else spot
+    while 0 <= index < len(carrier) and carrier[index].isspace():
+        index += step
+    return not (0 <= index < len(carrier)) or carrier[index] not in _HIDDEN
+
+
 def insert_position(carrier: str) -> int:
-    """Right after the first space, but never touching one of the carrier's own invisible characters."""
-    spots = [index + 1 for index, character in enumerate(carrier) if character == " "] + [len(carrier)]
+    """Right after the first space, but never next to (or only spaces away from) one of the
+    carrier's own invisible characters. Falls back to the end, then the start of the carrier."""
+    spots = [index + 1 for index, character in enumerate(carrier) if character == " "] + [len(carrier), 0]
     for spot in spots:
-        before_ok = spot == 0 or carrier[spot - 1] not in _HIDDEN
-        after_ok = spot == len(carrier) or carrier[spot] not in _HIDDEN
-        if before_ok and after_ok:
+        if _clear_side(carrier, spot, -1) and _clear_side(carrier, spot, +1):
             return spot
-    return len(carrier)
+    raise TextStegoError("This text has invisible characters where the message would go. Please use a different sentence.")
 
 
 def capacity_info(carrier: str) -> dict:
@@ -175,7 +186,8 @@ def encode_text(carrier: str, secret: str, password: str | None = None) -> str:
     # A normal space boundary reduces interference with joined Arabic letters.
     position = insert_position(carrier)
     stego = carrier[:position] + hidden + carrier[position:]
-    assert remove_hidden_symbols(stego) == carrier
+    if remove_hidden_symbols(stego) != carrier or find_hidden(stego) != hidden:  # check our own work
+        raise TextStegoError("This text cannot carry a message safely. Please use a different sentence.")
     return stego
 
 
@@ -188,7 +200,7 @@ def read_packet(stego: str) -> tuple[str, str, bytes]:
         raise TextStegoError("No hidden message found in this text.")
 
     # The English header always contains U+200C; the Arabic mapping never does.
-    # Only Stego Mail's first format used U+200D.
+    # Only the website's first format used U+200D.
     if "‍" in run:
         mode, values, per = "Legacy", [_LEGACY_SYMBOLS.index(ch) if ch in _LEGACY_SYMBOLS else -1 for ch in run], 4
     elif "‌" in run or "⁣" in run:
@@ -240,7 +252,7 @@ def decode_text(stego: str, password: str | None = None) -> str:
 
 
 def _legacy_payload(packet: bytes, password: str | None) -> bytes:
-    """Stego Mail's first format: ZW, version 1, lock flag, then CRC32 or AES-GCM."""
+    """The website's first format: ZW, version 1, lock flag, then CRC32 or AES-GCM."""
     if len(packet) < 8 or packet[:2] != b"ZW" or packet[2] != 1 or packet[3] not in (0, 1):
         raise TextStegoError("Hidden message is incomplete or corrupted.")
     if packet[3] == 0:
@@ -269,7 +281,7 @@ def remove_hidden_symbols(stego: str) -> str:
     return "".join(out)
 
 
-# The names the Stego Mail website (Member 3) and the Learn tab (Member 4) call.
+# The names the Stego Studio website (Member 3) and the Learn tab (Member 4) call.
 def hide(cover: str, message: str, password: str | None = None) -> str:
     return encode_text(cover, message, password)
 
