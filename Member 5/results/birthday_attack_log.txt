@@ -24,7 +24,7 @@ PART 2  The project's own checksum: CRC-32
 PART 3  Using the attack on our own steganography (no password)
         Harmless message: 'Meeting moved to 5 pm, room 204. [ref HROMJN60]'
         Harmful message:  'Send me all the exam answers now [ref UZVEOP1D]'
-        Both have CRC-32 4c5363bb. Found with 163,060 checksums in 0.08 s.
+        Both have CRC-32 4c5363bb. Found with 163,060 checksums in 0.43 s.
 
         Text carrier: hide the harmless message, then swap the hidden bytes and keep the checksum.
           reveal() before the swap: 'Meeting moved to 5 pm, room 204. [ref HROMJN60]'
@@ -48,13 +48,13 @@ PART 3  Using the attack on our own steganography (no password)
 
 PART 4  What a longer check value buys
 
-Work for a 50% chance of a collision (this laptop: 5,601,139 checksums per second in Python)
+Work for a 50% chance of a collision (this laptop: 1,603,799 checksums per second in Python)
   check_value_bits  used_for                                    tries_for_50_percent  time_on_this_laptop  time_at_one_billion_per_second
   ----------------  ------------------------------------------  --------------------  -------------------  ------------------------------
   32                CRC-32: both carriers without a password    77,163                under a second       under a second                
-  64                a 64-bit check value                        5,056,937,541         15 minutes           5 seconds                     
-  128               AES-GCM tag: both carriers with a password  2.17e+19              122,876 years        688 years                     
-  256               SHA-256                                     4.01e+38              2.3e+24 years        1.3e+22 years                 
+  64                a 64-bit check value                        5,056,937,541         53 minutes           5 seconds                     
+  128               AES-GCM tag: both carriers with a password  2.17e+19              429,135 years        688 years                     
+  256               SHA-256                                     4.01e+38              7.9e+24 years        1.3e+22 years                 
 
         Each extra bit of check value multiplies the work by 1.41; doubling the size squares it.
         The GCM tag also depends on the secret key, so an attacker cannot even compute it offline.

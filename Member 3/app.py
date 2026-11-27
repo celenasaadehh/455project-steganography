@@ -35,6 +35,7 @@ import text_stega as txt  # noqa: E402  (Member 2's text carrier)
 import db  # noqa: E402
 import mailer  # noqa: E402
 import member4  # noqa: E402  (Member 4: Learn tab + History tab)
+import extras  # noqa: E402  (self-destruct date, split secret, QR code)
 
 VERIFY_EMAIL = os.environ.get("STEGO_VERIFY_EMAIL", "0") == "1"  # off for now: accounts work without the e-mailed code
 ACCENTS = ("navy", "sky", "red", "green", "purple")  # app colour choices in Settings
@@ -595,9 +596,12 @@ def gallery_thumb(gid):
     return send_file(USER_GALLERY / f"{r['file']}.thumb.jpg", mimetype="image/jpeg", max_age=3600)
 
 
-def _cover_bytes():
-    """Cover image for Hide (and the Learn labs): a built-in picture, one of the user's own, or an upload."""
-    gid = request.form.get("gallery")
+def _cover_bytes(n: str = ""):
+    """Cover image for Hide (and the Learn labs): a built-in picture, one of the user's own, or an upload.
+
+    n="2" reads the second picture of a split hide (fields gallery2 / image2).
+    """
+    gid = request.form.get("gallery" + n)
     if gid:
         own = _own_gallery_row(gid, session["uid"])
         if own:
@@ -606,7 +610,48 @@ def _cover_bytes():
         if not g:
             return None, None
         return (GALLERY_DIR / g["file"]).read_bytes(), int(gid)
-    return _upload("image"), None
+    return _upload("image" + n), None
+
+
+def _extra_covers():
+    """Pictures added after the first to spread a long message: fields gallery_m<i> / image_m<i>, i < more_count.
+
+    Returns [(bytes, stem)], or None when one of them is missing.
+    """
+    try:
+        n = max(0, min(int(request.form.get("more_count", 0)), extras.MAX_PICTURES - 1))
+    except ValueError:
+        n = 0
+    out = []
+    for i in range(n):
+        cover, _ = _cover_bytes(f"_m{i}")
+        if cover is None:
+            return None
+        out.append((cover, _cover_stem(f"_m{i}")))
+    return out
+
+
+def _part(name: str, cover: bytes, result, ext: str, cover_index: int) -> dict:
+    """One output picture of a split or spread hide, with its own "did it change?" numbers."""
+    part = {"name": name, "data": extras.png_data_uri(result.image, MIMES[ext]), "cover": cover_index,
+            "used": result.message_bytes, "capacity": result.capacity_bytes, "psnr": None, "changed": None}
+    try:
+        q = img.measure(cover, result.image)
+        part.update(psnr=None if q.psnr_db is None else round(q.psnr_db, 1), changed=q.changed_rgb_fraction)
+    except img.StegoError:
+        pass
+    return part
+
+
+def _cover_stem(n: str = "") -> str:
+    """A safe file-name stem for the result: the gallery picture's name or the uploaded file's name."""
+    gid = request.form.get("gallery" + n)
+    if gid:
+        own = _own_gallery_row(gid, session["uid"])
+        stem = own["name"] if own else (gallery_item(gid) or {}).get("name", "picture")
+    else:
+        stem = Path(request.files["image" + n].filename).stem
+    return re.sub(r"[^\w\-]+", "-", stem).strip("-")[:40] or "picture"
 
 
 @app.post("/api/image/capacity")
@@ -625,26 +670,49 @@ def image_capacity():
 
 # ---------------------------------------------------------------- hide / reveal
 
+EXPIRY_CHOICES = {60, 24 * 60, 7 * 24 * 60, 30 * 24 * 60}   # minutes: 1 hour, 1 day, 1 week, 30 days
+
+
 @app.post("/api/hide")
 @login_required
 def hide_secret():
     """Hide a message and hand the result straight back. Nothing is saved.
 
     Image: returns the stego picture as a download. Text: returns {ok, text}.
+    Split (image only, split=1): returns {ok, split, parts:[{name, data}], ...}: two pictures that each hold half.
+    Optional: expires=<minutes> sets a self-destruct date (needs the password lock).
     """
     message = request.form.get("message", "")
     if not message.strip():
         return fail("Write the secret message.")
-    password = _password()
-    if password is None:
-        return fail("Enter a password.")
-    if len(password) < MIN_PASSWORD:
-        return fail(f"Use a password of at least {MIN_PASSWORD} characters.")
+    # lock=0 means "no password": the message is hidden but not encrypted.
+    # Anything else (or no field, as older clients send) keeps the password required.
+    password = None
+    if request.form.get("lock", "1") != "0":
+        password = _password()
+        if password is None:
+            return fail("Enter a password.")
+        if len(password) < MIN_PASSWORD:
+            return fail(f"Use a password of at least {MIN_PASSWORD} characters.")
+    expires = None
+    if request.form.get("expires"):
+        try:
+            minutes = int(request.form["expires"])
+        except ValueError:
+            minutes = -1
+        if minutes not in EXPIRY_CHOICES:
+            return fail("Unknown self-destruct time.")
+        if password is None:
+            return fail("A self-destruct date needs the password lock, so nobody can change it.")
+        expires = (_now() + timedelta(minutes=minutes)).replace(tzinfo=timezone.utc, second=0, microsecond=0)
+    message = extras.wrap_expiry(message, expires)
+    expires_iso = expires.strftime("%Y-%m-%dT%H:%M:%SZ") if expires else None
+
     if request.form.get("carrier") == "text":
         cover = request.form.get("cover", "")
         if not cover.strip():
             return fail("Write the visible text.")
-        return jsonify(ok=True, text=txt.hide(cover, message, password))
+        return jsonify(ok=True, text=txt.hide(cover, message, password), expires=expires_iso)
 
     fmt = request.form.get("format", "PNG").upper()
     if fmt not in FORMATS:
@@ -652,54 +720,139 @@ def hide_secret():
     cover, _ = _cover_bytes()
     if cover is None:
         return fail("Choose a picture from the gallery or upload one.")
-    result = img.embed(cover, message, password=password, output_format=fmt)
-    gid = request.form.get("gallery")
-    if gid:
-        own = _own_gallery_row(gid, session["uid"])
-        stem = own["name"] if own else (gallery_item(gid) or {}).get("name", "picture")
-    else:
-        stem = Path(request.files["image"].filename).stem
-    stem = re.sub(r"[^\w\-]+", "-", stem).strip("-")[:40] or "picture"
+    stem = _cover_stem()
     ext = FORMATS[fmt]
-    return send_file(io.BytesIO(result.image), mimetype=MIMES[ext], as_attachment=True,
+
+    if request.form.get("split") == "1":
+        # Two pictures, each holding one random-looking half; only both together give the message.
+        cover2, _ = _cover_bytes("2")
+        if cover2 is None:
+            return fail("Choose the second picture.")
+        stem2 = _cover_stem("2")
+        if stem2 == stem:
+            stem, stem2 = f"{stem}-part1", f"{stem2}-part2"
+        shares = extras.split_secret(message.encode("utf-8"))
+        results = [img.embed(c, share, password=password, output_format=fmt) for c, share in zip((cover, cover2), shares)]
+        return jsonify(ok=True, split=True, expires=expires_iso,
+                       parts=[_part(f"{name}-stego.{ext}", c, r, ext, i)
+                              for i, (name, c, r) in enumerate(zip((stem, stem2), (cover, cover2), results))])
+
+    more = _extra_covers()
+    if more is None:
+        return fail("One of the added pictures is missing. Choose it again.")
+    if more:
+        data = message.encode("utf-8")
+        covers = [(cover, stem)] + more
+        room = [img.capacity(c, fmt, encrypted=password is not None).max_message_bytes for c, _ in covers]
+        if len(data) > room[0]:          # one picture is not enough: cut the message into pieces
+            pieces = extras.chain_pieces(data, room)
+            if pieces is None:
+                return fail("Still too long. Add another picture.")
+            total = len(pieces)
+            made = [(covers[i], img.embed(covers[i][0], piece, password=password, output_format=fmt)) for i, piece in pieces]
+            return jsonify(ok=True, chain=True, expires=expires_iso,
+                           parts=[_part(f"{covers[i][1]}-{k}-of-{total}-stego.{ext}", covers[i][0], r, ext, i)
+                                  for k, ((i, _), (_, r)) in enumerate(zip(pieces, made), 1)])
+
+    result = img.embed(cover, message, password=password, output_format=fmt)
+    resp = send_file(io.BytesIO(result.image), mimetype=MIMES[ext], as_attachment=True,
                      download_name=f"{stem}-stego.{ext}")
+    # "Did it change?" proof for the result panel: how different the picture is from the original.
+    try:
+        q = img.measure(cover, result.image)
+        resp.headers["X-Stego-Psnr"] = "inf" if q.psnr_db is None else f"{q.psnr_db:.1f}"
+        resp.headers["X-Stego-Changed"] = f"{q.changed_rgb_fraction:.6f}"
+    except img.StegoError:
+        pass   # e.g. the picture was turned by its camera tag, so sizes differ: the result is still fine
+    resp.headers["X-Stego-Used"] = f"{result.message_bytes}/{result.capacity_bytes}"
+    if expires_iso:
+        resp.headers["X-Stego-Expires"] = expires_iso
+    return resp
+
+
+def _image_format(data: bytes) -> str | None:
+    try:
+        fmt = (Image.open(io.BytesIO(data)).format or "PNG").upper()
+    except (UnidentifiedImageError, OSError):
+        return None
+    return "JPEG" if fmt in ("JPEG", "MPO") else fmt
 
 
 @app.post("/api/reveal")
 @login_required
 def reveal_secret():
-    """Read the hidden message from an uploaded picture or pasted text.
+    """Read the hidden message from an uploaded picture (or two halves) or pasted text.
 
+    The password is optional: a message hidden without one opens without one,
+    and a locked message without a password just answers "needs its password".
     Wrong passwords are counted: after TRY_LIMIT in TRY_WINDOW the account is asked to wait.
+    A message past its self-destruct date is refused.
     """
     password = _password()
-    if password is None:
-        return fail("Enter the password.", "password", 401)
     mine = f"reveal:{session['uid']}"
     keys = {mine: TRY_LIMIT, f"reveal-ip:{_ip()}": TRY_LIMIT_IP}
     if (blocked := _too_many(keys)):
         return blocked
+    fmt = None
     try:
         if request.form.get("carrier") == "text":
             text = request.form.get("text", "")
             if not text.strip():
                 return fail("Paste the text first.")
-            result = jsonify(ok=True, message=txt.reveal(text, password))
+            secret = txt.reveal(text, password)
         else:
             data = _upload("image")
             if data is None:
                 return fail("Choose a picture first.")
-            try:
-                fmt = (Image.open(io.BytesIO(data)).format or "PNG").upper()
-            except (UnidentifiedImageError, OSError):
+            fmt = _image_format(data)
+            if fmt is None:
                 return fail("That file is not an image we can read.")
-            secret = img.extract(data, password=password).decode("utf-8", errors="replace")
-            result = jsonify(ok=True, message=secret, format="JPEG" if fmt in ("JPEG", "MPO") else fmt)
+            # Every picture is read; which is a half or which piece comes first is worked out
+            # from what is inside them, so the pictures can be given in any order.
+            others = [b for b in [_upload("image2")] + [f.read() for f in request.files.getlist("more") if f.filename] if b]
+            others = others[:extras.MAX_PICTURES - 1]
+            if any(_image_format(o) is None for o in others):
+                return fail("One of the added files is not an image we can read.")
+            raws = []
+            for n, picture in enumerate([data] + others, 1):
+                try:
+                    raws.append(img.extract(picture, password=password))
+                except img.PasswordError:
+                    raise
+                except img.StegoError:
+                    if not others:
+                        raise
+                    return fail(f"Picture {n} has no hidden message from this site.", "need_part")
+            try:
+                raw = extras.combine(raws)
+            except extras.ShareMismatch as exc:
+                return fail(str(exc), "need_part")
+            secret = raw.decode("utf-8", errors="replace")
     except (img.PasswordError, txt.TextPasswordError):
-        attempts.fail(*keys)
+        if password is not None:   # only a wrong guess counts, not a missing password
+            attempts.fail(*keys)
         raise
     attempts.clear(mine)
-    return result
+    secret, expires = extras.unwrap_expiry(secret)
+    if expires and _now().replace(tzinfo=timezone.utc) >= expires:
+        return fail(f"This message self-destructed on {expires.strftime('%d %b %Y, %H:%M')} UTC.", "expired", 410)
+    out = dict(ok=True, message=secret, expires=expires.strftime("%Y-%m-%dT%H:%M:%SZ") if expires else None)
+    if fmt:
+        out["format"] = fmt
+    return jsonify(out)
+
+
+@app.post("/api/qr")
+@login_required
+def qr_code():
+    """A QR code (PNG data URI) of a stego text, for scanning on a phone."""
+    text = (request.get_json(silent=True) or {}).get("text", "")
+    if not text:
+        return fail("Nothing to put in the QR code.")
+    try:
+        return jsonify(ok=True, png=extras.qr_png_data_uri(text))
+    except extras.QrTooLong as exc:
+        return fail(str(exc))
 
 
 if __name__ == "__main__":

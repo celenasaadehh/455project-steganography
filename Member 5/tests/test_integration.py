@@ -100,7 +100,7 @@ class WebsiteTests(unittest.TestCase):
         self.website.attempts.clear()      # every test starts with no wrong-password count
 
     def hide(self, client, **fields):
-        fields.setdefault("password", "pw-test-1")      # the website always asks for one (6+ characters)
+        fields.setdefault("password", "pw-test-1")      # needed (6+ characters) unless lock="0" is sent
         return client.post("/api/hide", data=fields, content_type="multipart/form-data")
 
     def reveal(self, client, **fields):
@@ -137,6 +137,27 @@ class WebsiteTests(unittest.TestCase):
             self.assertEqual(refused.get_json()["code"], "password")
         opened = self.reveal(self.bob, carrier="text", text=stego, password="open sesame")
         self.assertEqual(opened.get_json()["message"], "locked secret")
+
+    def test_lock_switched_off_needs_no_password(self):
+        # Text: hidden with lock="0", revealed with no password at all (any typed password is ignored).
+        hidden = self.hide(self.alice, carrier="text", cover="Meet me at noon.", message="open note", lock="0", password="")
+        self.assertEqual(hidden.status_code, 200, hidden.get_json())
+        stego = hidden.get_json()["text"]
+        for typed in ("", "anything-1"):
+            self.assertEqual(self.reveal(self.bob, carrier="text", text=stego, password=typed).get_json()["message"], "open note")
+        # Picture: the same, and the file really is unlocked for the algorithm too.
+        upload = (io.BytesIO(to_bytes(common.noise_image())), "cover.png")
+        picture = self.hide_picture(self.alice, image=upload, format="PNG", message="open picture", lock="0", password="")
+        self.assertEqual(image_stego.extract(picture), b"open picture")
+        self.assertEqual(self.reveal_picture(self.bob, picture, "").get_json()["message"], "open picture")
+
+    def test_missing_password_on_a_locked_message_is_not_a_wrong_guess(self):
+        # Asking without a password only gets "needs its password"; it must not use up the 5 wrong tries.
+        stego = self.hide(self.alice, carrier="text", cover="Locked one.", message="x", password="right-pass").get_json()["text"]
+        for _ in range(6):
+            refused = self.reveal(self.bob, carrier="text", text=stego, password="")
+            self.assertEqual((refused.status_code, refused.get_json()["code"]), (401, "password"))
+        self.assertEqual(self.reveal(self.bob, carrier="text", text=stego, password="right-pass").status_code, 200)
 
     # ----------------------------------------------------------- image carrier
 

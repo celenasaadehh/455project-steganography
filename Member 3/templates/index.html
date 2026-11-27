@@ -6,23 +6,23 @@
   <title>Stego Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('member4.static', filename='member4.css') }}"><!-- Member 4 -->
-  <script>try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;const a=localStorage.getItem('accent');if(a)document.documentElement.dataset.accent=a;}catch(e){}</script>
+  <script>try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;const a=localStorage.getItem('accent');if(a)document.documentElement.dataset.accent=a;if(localStorage.getItem('lang')==='ar'){document.documentElement.lang='ar';document.documentElement.dir='rtl';}}catch(e){}</script>
 </head>
 <body>
 
 <!-- ============================ AUTH ============================ -->
 <div id="auth" class="auth" hidden>
   <div class="auth-card">
-    <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lgA)"/><rect x="6" y="8" width="20" height="16" rx="3" fill="#fff"/><path d="M8.5 21.5l5-5.5 3.5 3.5 2.5-2.5 4 4.5" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="20.5" cy="12.5" r="1.8" fill="#6366f1"/></svg><span>Stego Studio</span></div>
+    <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lgA)"/><rect x="6" y="8" width="20" height="16" rx="3" fill="#fff"/><path d="M8.5 21.5l5-5.5 3.5 3.5 2.5-2.5 4 4.5" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="20.5" cy="12.5" r="1.8" fill="#6366f1"/></svg><span>Stego Studio</span><button type="button" class="lang-btn auth-lang" data-lang-toggle translate="no">العربية</button></div>
 
     <form id="login-form" class="auth-form" novalidate>
       <h1>Sign in</h1>
-      <label>Email<input name="handle" type="email" autocomplete="email" required></label>
-      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <label>Email<input name="handle" type="email" autocomplete="email" required readonly data-nofill></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required readonly data-nofill></label>
       <div class="status"></div>
       <button class="btn primary big" type="submit">Sign in</button>
       <p class="switch-auth">New here? <button type="button" class="link" data-auth="register">Create an account</button></p>
@@ -76,6 +76,7 @@
     <header class="bar">
       <button class="icon-btn menu" data-menu aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <h1 class="title"><span class="title-ic" data-title-icon></span><span data-title>Hide</span></h1>
+      <button type="button" class="lang-btn" data-lang-toggle translate="no" title="Language">العربية</button>
     </header>
 
     <!-- Hide: make the stego picture or text, then download / copy it -->
@@ -88,12 +89,12 @@
           </div>
 
           <div data-carrier-pane="image">
-            <label class="drop big" data-cover-drop>
-              <input type="file" name="image" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" hidden>
+            <input type="file" name="image" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" hidden>
+            <div class="drop big" data-cover-drop role="button" tabindex="0">
               <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
-              <span>Upload or drop a picture</span>
-              <small>or pick one in Gallery</small>
-            </label>
+              <span>Choose a picture</span>
+              <small>from the gallery or this computer, or drop one here</small>
+            </div>
             <div class="carrier-box" data-cover-box hidden>
               <div class="cover-preview"><img data-cover-img alt=""></div>
               <div class="carrier-tools">
@@ -110,6 +111,27 @@
               </select>
             </div>
             <div class="meter-bar" data-meter-bar><span></span></div>
+            <div class="more" data-more hidden>
+              <input type="file" name="more_file" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" multiple hidden>
+              <div class="more-list" data-more-list></div>
+              <button type="button" class="drop more-add" data-more-add>
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Add another picture</span>
+              </button>
+            </div>
+            <label class="switch split-switch" title="Each picture alone holds only random noise; both together give the message"><input type="checkbox" name="split" data-split><span class="track"></span>Split into two pictures</label>
+            <div class="cover2" data-cover2 hidden>
+              <input type="file" name="image2" accept="image/png,image/jpeg,image/bmp,image/heic,image/heif,.heic,.heif" hidden>
+              <button type="button" class="drop cover2-drop" data-cover2-drop>
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Choose the second picture</span>
+              </button>
+              <div class="cover2-chip" data-cover2-chip hidden>
+                <img data-cover2-img alt="">
+                <span><b>Second picture</b><small data-cover2-name></small></span>
+                <button type="button" class="pill" data-cover2-change>Change</button>
+              </div>
+            </div>
           </div>
 
           <div data-carrier-pane="text" hidden>
@@ -117,11 +139,34 @@
           </div>
 
           <textarea name="message" rows="4" placeholder="Secret message" required></textarea>
+          <div class="tmeter" data-tmeter hidden>
+            <div class="meter-bar" data-tmeter-bar><span></span></div>
+            <small class="meter-text" data-tmeter-text></small>
+          </div>
 
-          <input name="password" type="password" placeholder="Password (at least 6 characters)" autocomplete="new-password" minlength="6" required>
+          <label class="switch"><input type="checkbox" name="lock" checked data-lock><span class="track"></span>Lock with a password</label>
+          <p class="lock-warn" data-lock-warn hidden>No password: anyone can read the message.</p>
+
+          <div class="pw-field" data-pw-field>
+            <input name="password" type="password" placeholder="Password (at least 6 characters)" autocomplete="new-password" minlength="6">
+            <div class="pw-meta">
+              <span class="pw-bar" data-pw-bar data-level="0"><i></i><i></i><i></i><i></i></span>
+              <small class="pw-label" data-pw-label></small>
+              <button type="button" class="link pw-suggest" data-pw-suggest>Suggest a strong password</button>
+            </div>
+            <label class="expiry"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>Self-destruct
+              <select name="expires" class="mini">
+                <option value="">Never</option>
+                <option value="60">After 1 hour</option>
+                <option value="1440">After 1 day</option>
+                <option value="10080">After 7 days</option>
+                <option value="43200">After 30 days</option>
+              </select>
+            </label>
+          </div>
 
           <div class="status"></div>
-          <button type="submit" class="btn primary big" data-hide-btn>Hide and download</button>
+          <button type="submit" class="btn primary big" data-hide-btn>Hide</button>
         </form>
 
         <div class="card studio-out" data-out>
@@ -145,17 +190,32 @@
             <div class="carrier-box">
               <div class="stage" data-stage="out">
                 <img data-out-img alt="">
+                <button type="button" class="stage-nav prev" data-part-prev aria-label="Previous picture" hidden><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+                <button type="button" class="stage-nav next" data-part-next aria-label="Next picture" hidden><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+                <span class="stage-count" data-part-count hidden></span>
                 <canvas class="lens" hidden></canvas>
+                <canvas class="diff" data-diff hidden></canvas>
+                <div class="cmp" data-cmp hidden>
+                  <img data-cmp-orig alt="Original picture">
+                  <span class="cmp-line"></span>
+                  <span class="cmp-tag left">Original</span><span class="cmp-tag right">With message</span>
+                  <input type="range" min="0" max="100" value="50" data-cmp-range aria-label="Compare original and result">
+                </div>
               </div>
               <pre data-out-text hidden></pre>
               <div class="carrier-tools">
+                <button type="button" class="pill" data-compare hidden title="Slide between the original and the result"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><path d="M8 10l-2 2 2 2M16 10l2 2-2 2"/></svg>Compare</button>
+                <button type="button" class="pill" data-diff-btn hidden title="Light up every value that changed"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 010 18" fill="currentColor"/></svg>Changes</button>
                 <button type="button" class="pill" data-xray="out" hidden title="See the hidden-bit layer"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6M11 8v6"/></svg>X-ray</button>
                 <button type="button" class="pill" data-show-hidden="out" hidden title="Show the invisible characters"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Show hidden</button>
                 <small class="carrier-note" data-note="out"></small>
               </div>
             </div>
+            <div class="proof" data-proof hidden></div>
             <div class="detail-actions">
-              <a class="btn primary" data-out-download hidden><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>Download</a>
+              <a class="btn primary" data-out-download hidden><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg><span data-dl-label>Download</span></a>
+              <button type="button" class="btn secondary" data-out-all hidden><svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1zM10 12h4"/></svg>Download all</button>
+              <button type="button" class="btn secondary" data-out-qr hidden><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/></svg>QR code</button>
               <button type="button" class="btn primary" data-out-copy hidden><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy text</button>
               <a class="btn secondary" data-out-txt hidden><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>.txt</a>
               <button type="button" class="btn ghost" data-out-try>Open in Reveal</button>
@@ -176,9 +236,10 @@
 
           <div data-carrier-pane="image">
             <label class="drop" data-drop>
-              <input type="file" name="image" accept="image/png,image/jpeg,image/bmp" hidden>
+              <input type="file" name="image" accept="image/png,image/jpeg,image/bmp" multiple hidden>
               <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
               <span>Upload or drop the picture</span>
+              <small>For a split or spread message, choose all its pictures, in any order</small>
             </label>
             <div class="carrier-box" data-r-box hidden>
               <div class="stage" data-stage="in">
@@ -191,6 +252,14 @@
                 <button type="button" class="pill" data-r-change><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>Change</button>
                 <small class="carrier-note" data-note="in"></small>
               </div>
+            </div>
+            <div class="part2" data-part2 hidden>
+              <div class="more-list" data-r-more-list></div>
+              <label class="drop part2-drop" data-drop2>
+                <input type="file" name="image2" accept="image/png,image/jpeg,image/bmp" multiple hidden>
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Add another picture</span>
+              </label>
             </div>
           </div>
 
@@ -206,11 +275,12 @@
           </div>
 
           <div class="unlock">
-            <input name="password" type="password" placeholder="Password" autocomplete="off">
+            <input name="password" type="password" placeholder="Password (if it has one)" autocomplete="off">
             <button class="btn primary" type="submit">Reveal</button>
           </div>
           <div class="status"></div>
           <div class="secret" data-secret hidden></div>
+          <small class="secret-note" data-secret-note hidden></small>
         </form>
       </div>
     </section>
@@ -229,9 +299,9 @@
     <!-- Tutorial -->
     <section class="view" data-view="tutorial" hidden>
       <div class="steps">
-        <div class="tstep"><span class="n">1</span><div><h3>Hide</h3><p>Pick a picture, or choose <em>Text</em> to hide inside a sentence. Write the secret and add a password.</p></div></div>
+        <div class="tstep"><span class="n">1</span><div><h3>Hide</h3><p>Pick a picture, or choose <em>Text</em> to hide inside a sentence. Write the secret and, if you want, add a password.</p></div></div>
         <div class="tstep"><span class="n">2</span><div><h3>Download</h3><p>Save the picture, or copy the text. It looks completely ordinary.</p></div></div>
-        <div class="tstep"><span class="n">3</span><div><h3>Reveal</h3><p>Upload the picture or paste the text in <em>Reveal</em> and enter the password.</p></div></div>
+        <div class="tstep"><span class="n">3</span><div><h3>Reveal</h3><p>Upload the picture or paste the text in <em>Reveal</em> and enter the password if it has one.</p></div></div>
       </div>
       {% include "member4/learn.html" %}<!-- Member 4 -->
       <button class="btn primary" data-go="hide">Start hiding</button>
@@ -294,6 +364,13 @@
                 <button class="swatch" data-accent="purple" style="background:#6d28d9" title="Purple" aria-label="Purple"></button>
               </div>
             </div>
+            <div class="srow">
+              <div class="lbl"><strong>Language</strong></div>
+              <div class="segmented" translate="no">
+                <button class="seg" data-lang="en">English</button>
+                <button class="seg" data-lang="ar">العربية</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -350,10 +427,6 @@
             <p><b>Text</b> · zero-width Unicode characters after the first word: 2 bits each, or 1 bit each in Arabic text.</p>
             <p><b>Lock</b> · AES-256-GCM; the key comes from your password through scrypt.</p>
           </div>
-          <div class="card about">
-            <h3>Stego Studio</h3>
-            <p>Project 17 · Steganography (message and image). Member 1: image engine. Member 2: text carrier. Member 3: website. Member 4: Learn and History. Member 5: testing.</p>
-          </div>
         </div>
 
         <button class="btn ghost danger" data-logout>Sign out</button>
@@ -361,6 +434,43 @@
     </section>
   </main>
 
+</div>
+
+<!-- ============================ PICTURE CHOOSER (Hide) ============================ -->
+<div id="picker" class="modal" hidden>
+  <div class="sheet picker-sheet" role="dialog" aria-labelledby="picker-title">
+    <header class="sheet-head">
+      <button type="button" class="icon-btn" data-picker-back aria-label="Back" hidden><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h2 id="picker-title" data-picker-title>Choose a picture</h2>
+      <button type="button" class="icon-btn" data-picker-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </header>
+    <div class="pick-options" data-picker-options>
+      <button type="button" class="pick-opt" data-pick="gallery">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <strong>From gallery</strong>
+        <small>Built-in pictures and your own</small>
+      </button>
+      <button type="button" class="pick-opt" data-pick="computer">
+        <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <strong>From this computer</strong>
+        <small>PNG, JPEG, BMP or HEIC</small>
+      </button>
+    </div>
+    <div class="pick-grid" data-picker-grid hidden></div>
+  </div>
+</div>
+
+<!-- ============================ QR CODE (text result) ============================ -->
+<div id="qr" class="modal" hidden>
+  <div class="sheet qr-sheet" role="dialog" aria-labelledby="qr-title">
+    <header class="sheet-head">
+      <h2 id="qr-title">Scan on a phone</h2>
+      <button type="button" class="icon-btn" data-qr-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </header>
+    <img class="qr-img" data-qr-img alt="QR code of the text with the hidden message">
+    <p class="tip-line">Scan it, copy the text, and paste it into Reveal.</p>
+    <a class="btn primary" data-qr-dl download="hidden-text-qr.png"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v3h16v-3"/></svg>Download</a>
+  </div>
 </div>
 
 <!-- ============================ AVATAR CROP ============================ -->
@@ -396,6 +506,7 @@
   </div>
 </template>
 
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 <script src="{{ url_for('member4.static', filename='member4.js') }}"></script><!-- Member 4 -->
 </body>

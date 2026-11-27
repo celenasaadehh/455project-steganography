@@ -61,6 +61,7 @@
   }
   function showAuth() {
     appEl.hidden = true; authEl.hidden = false;
+    concealPasswords(authEl);
     showAuthForm('login');
   }
   $$('[data-auth]').forEach(b => b.addEventListener('click', () => showAuthForm(b.dataset.auth)));
@@ -157,6 +158,42 @@
     if (name === 'hide' && !state.gallery) fetchGallery();
     if (name === 'gallery') loadGallery();
     if (name === 'settings') refreshAbout();
+    requestAnimationFrame(moveNavMarker);
+  }
+
+  // A white marker that slides behind the active menu item.
+  const nav = $('.nav'), navMarker = document.createElement('span');
+  navMarker.className = 'nav-marker'; navMarker.setAttribute('aria-hidden', 'true');
+  nav.prepend(navMarker);
+  function moveNavMarker() {
+    const b = $('button.active', nav);
+    navMarker.hidden = !b;
+    if (!b) return;
+    navMarker.style.transform = `translateY(${b.offsetTop}px)`;
+    navMarker.style.height = `${b.offsetHeight}px`;
+  }
+  new ResizeObserver(moveNavMarker).observe(nav);
+
+  // While a picture is being hidden, coloured "pixels" flicker over the cover.
+  function scramble(box) {
+    if (reduceMotion || !box) return () => {};
+    const c = document.createElement('canvas'), ctx = c.getContext('2d');
+    c.className = 'scramble'; box.append(c);
+    const rgb = getComputedStyle(document.documentElement).getPropertyValue('--blue-rgb').trim() || '30,79,194';
+    const cell = 10;
+    let alive = true;
+    (function frame() {
+      if (!alive) return;
+      c.width = box.clientWidth; c.height = box.clientHeight;
+      for (let y = 0; y < c.height; y += cell) for (let x = 0; x < c.width; x += cell) {
+        const r = Math.random();
+        if (r < .55) continue;
+        ctx.fillStyle = r > .93 ? 'rgba(255,255,255,.75)' : `rgba(${rgb},${(r - .5).toFixed(2)})`;
+        ctx.fillRect(x, y, cell - 1, cell - 1);
+      }
+      setTimeout(() => requestAnimationFrame(frame), 70);
+    })();
+    return () => { alive = false; c.classList.add('done'); setTimeout(() => c.remove(), 350); };
   }
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => showView(b.dataset.nav)));
   $$('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
@@ -336,6 +373,8 @@
         if (!res.ok) return toast(res.error);
         state.gallery = state.gallery.filter(x => x.id !== g.id);
         if (hide.gallery === g.id) selectCover({});
+        if (hide.gallery2 === g.id) selectCover2({});
+        if (hide.more.some(m => m.gallery === g.id)) { hide.more = hide.more.filter(m => m.gallery !== g.id); renderMore(); refreshCapacity(); }
         renderGallery(); toast('Removed');
       });
       grid.insertBefore(t, addTile);
@@ -360,7 +399,7 @@
 
   // ------------------------------------------------------------ hide
   const form = $('[data-hide]');
-  const hide = { carrier: 'image', gallery: null, file: null, cap: null, result: null, urls: [] };
+  const hide = { carrier: 'image', gallery: null, file: null, gallery2: null, file2: null, more: [], cap: null, result: null, urls: [] };
 
   // One big upload box. A picture chosen in Gallery shows up in the same box.
   const coverImg = $('[data-cover-img]'), coverDrop = $('[data-cover-drop]');
@@ -381,7 +420,92 @@
   }
   coverImg.addEventListener('error', () => { if (coverImg.getAttribute('src')) coverImg.hidden = true; });  // e.g. HEIC: no preview, name only
   form.image.addEventListener('change', (e) => { const f = e.target.files[0]; if (f) selectCover({ file: f }); });
-  $('[data-cover-change]').addEventListener('click', () => form.image.click());
+  // Clicking the box (or Change) asks where the picture comes from: the gallery or this computer.
+  const pickerEl = $('#picker'), pickerGrid = $('[data-picker-grid]');
+  function pickerStep(step) {
+    $('[data-picker-options]').hidden = step !== 'options';
+    pickerGrid.hidden = step !== 'gallery';
+    $('[data-picker-back]').hidden = step !== 'gallery';
+    $('[data-picker-title]').textContent = step === 'gallery' ? 'Gallery' : 'Choose a picture';
+  }
+  // The chooser fills either the main picture (1) or, when splitting, the second picture (2).
+  let pickFor = 1;
+  function openPicker(target = 1) { pickFor = target === 2 || target === 'more' ? target : 1; pickerStep('options'); pickerEl.hidden = false; $('[data-pick="gallery"]').focus(); }
+  function closePicker() { pickerEl.hidden = true; }
+  async function showPickerGallery() {
+    pickerStep('gallery');
+    if (!state.gallery && !(await fetchGallery())) { pickerStep('options'); return toast('Could not load the gallery'); }
+    pickerGrid.replaceChildren(...state.gallery.map(g => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tile'; b.title = g.name;
+      b.classList.toggle('selected', pickFor !== 'more' && (pickFor === 2 ? hide.gallery2 : hide.gallery) === g.id);
+      const im = document.createElement('img'); im.src = g.thumb_url; im.alt = g.name; im.loading = 'lazy';
+      const name = document.createElement('span'); name.className = 'tile-name'; name.textContent = g.name;
+      b.append(im, name);
+      b.addEventListener('click', () => { (pickFor === 'more' ? addMore : pickFor === 2 ? selectCover2 : selectCover)({ gallery: g.id }); closePicker(); });
+      return b;
+    }));
+  }
+  coverDrop.addEventListener('click', () => openPicker(1));
+  coverDrop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(1); } });
+  $('[data-cover-change]').addEventListener('click', () => openPicker(1));
+  $('[data-pick="gallery"]').addEventListener('click', showPickerGallery);
+  $('[data-pick="computer"]').addEventListener('click', () => { closePicker(); (pickFor === 'more' ? form.more_file : pickFor === 2 ? form.image2 : form.image).click(); });
+
+  // ---------- more pictures: when the message is too long for one picture
+  const MAX_PICTURES = 10, PIECE_LABEL = 17;   // each picture also carries a 17-byte label (which piece, of how many)
+  function addMore({ gallery = null, file = null }) {
+    if (1 + hide.more.length >= MAX_PICTURES) return toast(`Up to ${MAX_PICTURES} pictures`);
+    hide.more.push({ gallery, file, url: file ? URL.createObjectURL(file) : null });
+    renderMore(); refreshCapacity();
+  }
+  function renderMore() {
+    $('[data-more-list]').replaceChildren(...hide.more.map((m, i) => {
+      const g = m.gallery ? (state.gallery || []).find(x => x.id === m.gallery) : null;
+      return pictureChip(m.url || g?.thumb_url || g?.url, `Picture ${i + 2}`, g ? g.name : m.file?.name || '', () => {
+        if (m.url) URL.revokeObjectURL(m.url);
+        hide.more.splice(i, 1); renderMore(); refreshCapacity();
+      });
+    }));
+  }
+  function clearMore() { hide.more.forEach(m => m.url && URL.revokeObjectURL(m.url)); hide.more = []; renderMore(); }
+  form.more_file.addEventListener('change', () => { [...form.more_file.files].forEach(f => addMore({ file: f })); form.more_file.value = ''; });
+  const moreAdd = $('[data-more-add]');
+  moreAdd.addEventListener('click', () => openPicker('more'));
+  moreAdd.addEventListener('dragover', (e) => { e.preventDefault(); moreAdd.classList.add('over'); });
+  moreAdd.addEventListener('dragleave', () => moreAdd.classList.remove('over'));
+  moreAdd.addEventListener('drop', (e) => { e.preventDefault(); moreAdd.classList.remove('over'); [...e.dataTransfer.files].forEach(f => addMore({ file: f })); });
+
+  // ---------- second picture (split only)
+  let cover2Url = null;
+  function selectCover2({ gallery = null, file = null }) {
+    hide.gallery2 = gallery; hide.file2 = file;
+    if (cover2Url) { URL.revokeObjectURL(cover2Url); cover2Url = null; }
+    const g = gallery ? (state.gallery || []).find(x => x.id === gallery) : null;
+    const chosen = !!(g || file), im = $('[data-cover2-img]');
+    $('[data-cover2-drop]').hidden = chosen; $('[data-cover2-chip]').hidden = !chosen;
+    if (file) { cover2Url = URL.createObjectURL(file); im.src = cover2Url; }
+    else if (g) im.src = g.thumb_url || g.url;
+    else im.removeAttribute('src');
+    $('[data-cover2-name]').textContent = g ? g.name : file ? file.name : '';
+    form.image2.value = '';
+    refreshCapacity();
+  }
+  form.image2.addEventListener('change', (e) => { const f = e.target.files[0]; if (f) selectCover2({ file: f }); });
+  $('[data-cover2-drop]').addEventListener('click', () => openPicker(2));
+  $('[data-cover2-change]').addEventListener('click', () => openPicker(2));
+  const cover2Drop = $('[data-cover2-drop]');
+  cover2Drop.addEventListener('dragover', (e) => { e.preventDefault(); cover2Drop.classList.add('over'); });
+  cover2Drop.addEventListener('dragleave', () => cover2Drop.classList.remove('over'));
+  cover2Drop.addEventListener('drop', (e) => {
+    e.preventDefault(); cover2Drop.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f) selectCover2({ file: f });
+  });
+  $('[data-picker-back]').addEventListener('click', () => pickerStep('options'));
+  $('[data-picker-close]').addEventListener('click', closePicker);
+  pickerEl.addEventListener('click', (e) => { if (e.target === pickerEl) closePicker(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pickerEl.hidden) closePicker(); });
   coverDrop.addEventListener('dragover', (e) => { e.preventDefault(); coverDrop.classList.add('over'); });
   coverDrop.addEventListener('dragleave', () => coverDrop.classList.remove('over'));
   coverDrop.addEventListener('drop', (e) => {
@@ -394,17 +518,28 @@
   function refreshCapacity() {
     hide.cap = null; renderMeter();
     clearTimeout(capTimer);
-    if (hide.carrier !== 'image' || (!hide.gallery && !hide.file)) return;
+    if (hide.carrier !== 'image' || (!hide.gallery && !hide.file)) return showMore(false);
     capTimer = setTimeout(async () => {
-      const key = () => `${hide.gallery}|${hide.file?.name}|${form.format.value}`;
+      const two = form.split.checked && (hide.gallery2 || hide.file2);
+      const extra = form.split.checked ? [] : hide.more;
+      const key = () => `${hide.gallery}|${hide.file?.name}|${two ? `${hide.gallery2}|${hide.file2?.name}` : ''}|${extra.map(m => m.gallery || m.file?.name).join(',')}|${form.format.value}|${locked()}`;
       const before = key();
-      const fd = new FormData();
-      if (hide.gallery) fd.append('gallery', hide.gallery); else fd.append('image', hide.file);
-      fd.append('format', form.format.value);
-      fd.append('encrypted', '1');   // a password is always used
-      const res = await api('/api/image/capacity', { method: 'POST', body: fd });
+      const capOf = (gallery, file) => {
+        const fd = new FormData();
+        if (gallery) fd.append('gallery', gallery); else fd.append('image', file);
+        fd.append('format', form.format.value);
+        fd.append('encrypted', locked() ? '1' : '0');   // a password adds a little overhead
+        return api('/api/image/capacity', { method: 'POST', body: fd });
+      };
+      const caps = await Promise.all([capOf(hide.gallery, hide.file), ...(two ? [capOf(hide.gallery2, hide.file2)] : []),
+                                      ...extra.map(m => capOf(m.gallery, m.file))]);
       if (key() !== before) return;
-      hide.cap = res.ok ? res : { error: res.error };
+      const bad = caps.find(c => !c.ok);
+      // splitting: the smaller picture decides; spreading: the pictures add up (less a small label on each)
+      hide.cap = bad ? { error: bad.error }
+        : two ? { max_message_bytes: Math.min(...caps.map(c => c.max_message_bytes)), can_embed: caps.every(c => c.can_embed) }
+        : extra.length ? { max_message_bytes: caps.reduce((t, c) => t + Math.max(0, c.max_message_bytes - PIECE_LABEL), 0), can_embed: caps[0].can_embed, spread: caps.length }
+        : { max_message_bytes: caps[0].max_message_bytes, can_embed: caps[0].can_embed };
       renderMeter();
     }, 120);
   }
@@ -413,34 +548,54 @@
     const text = $('[data-meter-text]'), bar = $('[data-meter-bar]'), span = $('span', bar);
     const used = bytes(form.message.value);
     text.classList.remove('over'); bar.classList.remove('over');
-    if (hide.carrier === 'text') return;
+    $('[data-tmeter]').hidden = hide.carrier !== 'text';
+    if (hide.carrier === 'text') { renderTextMeter(); return showMore(false); }
     if (!hide.gallery && !hide.file) { text.textContent = 'Pick a picture'; span.style.width = '0'; return; }
     if (!hide.cap) { text.textContent = 'Checking…'; span.style.width = '0'; return; }
     if (hide.cap.error) { text.textContent = hide.cap.error; text.classList.add('over'); span.style.width = '0'; return; }
-    const max = hide.cap.max_message_bytes;
+    // a split half carries a 16-byte tag, a self-destruct date 23 bytes
+    const extra = (form.split.checked ? 16 : 0) + (locked() && form.expires.value ? 23 : 0);
+    const max = Math.max(0, hide.cap.max_message_bytes - extra);
     const over = used > max || !hide.cap.can_embed;
     span.style.width = `${Math.min(100, max ? (used / max) * 100 : 100)}%`;
     text.classList.toggle('over', over); bar.classList.toggle('over', over);
-    text.textContent = !hide.cap.can_embed ? 'Picture too small' : `${used.toLocaleString()} / ${max.toLocaleString()} characters`;
+    text.textContent = !hide.cap.can_embed ? 'Picture too small'
+      : hide.cap.spread ? `${used.toLocaleString()} / ${max.toLocaleString()} characters · ${hide.cap.spread} pictures`
+      : `${used.toLocaleString()} / ${max.toLocaleString()} characters`;
+    showMore(over || hide.more.length > 0);
+  }
+  const TEXT_MAX = 65535;
+  function renderTextMeter() {
+    const text = $('[data-tmeter-text]'), bar = $('[data-tmeter-bar]'), span = $('span', bar);
+    const max = TEXT_MAX - (locked() && form.expires.value ? 23 : 0);
+    const used = bytes(form.message.value), over = used > max;
+    span.style.width = `${Math.min(100, (used / max) * 100)}%`;
+    text.classList.toggle('over', over); bar.classList.toggle('over', over);
+    text.textContent = `${used.toLocaleString()} / ${max.toLocaleString()} characters`;
+  }
+  function showMore(on) {
+    $('[data-more]').hidden = !(on && hide.carrier === 'image' && !form.split.checked && (hide.gallery || hide.file));
   }
   form.message.addEventListener('input', renderMeter);
   form.format.addEventListener('change', refreshCapacity);
 
   const setHideCarrier = carrierSwitch(form, (c) => {
     hide.carrier = c;
-    $('[data-hide-btn]').textContent = c === 'image' ? 'Hide and download' : 'Hide';
+    status(form, '');
     renderMeter();
   });
 
   // ---------- result panel
   function freeUrls() { hide.urls.forEach(u => URL.revokeObjectURL(u)); hide.urls = []; }
   function clearResult() {
-    freeUrls(); xrayOut.off();
+    freeUrls(); outViewsOff();
     hide.result = null;
     $('[data-out-result]').hidden = true; $('[data-out-empty]').hidden = false;
   }
+  function galleryUrl(id) { return (state.gallery || []).find(g => g.id === id)?.url || null; }
+
   function showResult(r) {
-    freeUrls(); xrayOut.off();
+    freeUrls(); outViewsOff();
     hide.result = r;
     const isImg = r.carrier === 'image';
     $('[data-out-empty]').hidden = true; $('[data-out-result]').hidden = false;
@@ -449,17 +604,185 @@
     $('[data-show-hidden="out"]').classList.remove('on');
     $('[data-note="out"]').textContent = '';
     $('[data-out-download]').hidden = !isImg; $('[data-out-copy]').hidden = isImg; $('[data-out-txt]').hidden = isImg;
+    $('[data-out-qr]').hidden = isImg;
+    $('[data-out-all]').hidden = !(isImg && r.parts.length > 1);
     if (isImg) {
-      const url = URL.createObjectURL(r.blob); hide.urls.push(url);
-      $('[data-out-img]').src = url;
-      const dl = $('[data-out-download]'); dl.href = url; dl.download = r.name;
-      dl.click();   // the picture downloads straight away; the button is there to save it again
+      r.parts.forEach(p => { p.url = URL.createObjectURL(p.blob); hide.urls.push(p.url); if (p.coverUrl?.startsWith('blob:')) hide.urls.push(p.coverUrl); });
+      showPart(0);
     } else {
+      renderProof(r);
       $('[data-out-text]').textContent = r.text;
       const url = URL.createObjectURL(new Blob([r.text], { type: 'text/plain;charset=utf-8' })); hide.urls.push(url);
       const a = $('[data-out-txt]'); a.href = url; a.download = 'hidden-text.txt';
     }
   }
+
+  // Several pictures (split or spread): arrows on the picture flip through them.
+  function showPart(k) {
+    const r = hide.result, n = r.parts.length;
+    r.at = (k + n) % n;
+    const p = r.parts[r.at];
+    outViewsOff();
+    $('[data-out-img]').src = p.url;
+    const orig = $('[data-cmp-orig]');
+    if (p.coverUrl) orig.src = p.coverUrl; else orig.removeAttribute('src');
+    $('[data-compare]').hidden = $('[data-diff-btn]').hidden = !p.coverUrl;
+    renderProof({ ...r, stats: p.stats });
+    const many = n > 1;
+    $('[data-part-prev]').hidden = $('[data-part-next]').hidden = $('[data-part-count]').hidden = !many;
+    $('[data-part-count]').textContent = `${r.at + 1} / ${n}`;
+    const dl = $('[data-out-download]'); dl.href = p.url; dl.download = p.name;
+    $('[data-dl-label]').textContent = many ? `Download part ${r.at + 1}` : 'Download';
+  }
+  $('[data-part-prev]').addEventListener('click', () => showPart(hide.result.at - 1));
+  $('[data-part-next]').addEventListener('click', () => showPart(hide.result.at + 1));
+
+  // "Download all": one .zip with every part, so the browser asks only once.
+  $('[data-out-all]').addEventListener('click', async () => {
+    const r = hide.result;
+    const zip = await makeZip(await Promise.all(r.parts.map(async p => ({ name: p.name, data: new Uint8Array(await p.blob.arrayBuffer()) }))));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(zip); a.download = `${r.parts[0].name.replace(/(-\d+-of-\d+)?-stego\.\w+$/, '')}-all-parts.zip`;
+    hide.urls.push(a.href); a.click();
+  });
+
+  // A plain .zip (files stored as they are: pictures are already compressed).
+  const CRC_TABLE = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  function crc32(d) { let c = 0xFFFFFFFF; for (let i = 0; i < d.length; i++) c = CRC_TABLE[(c ^ d[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  async function makeZip(files) {
+    const enc = new TextEncoder(), chunks = [], central = [];
+    let offset = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+      const local = new DataView(new ArrayBuffer(30));
+      [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, 0, 2], [12, 0x21, 2], [14, crc, 4], [18, size, 4], [22, size, 4], [26, name.length, 2], [28, 0, 2]]
+        .forEach(([o, v, w]) => (w === 4 ? local.setUint32(o, v, true) : local.setUint16(o, v, true)));
+      chunks.push(local, name, f.data);
+      const cen = new DataView(new ArrayBuffer(46));
+      [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, 0, 2], [14, 0x21, 2], [16, crc, 4], [20, size, 4], [24, size, 4],
+       [28, name.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, offset, 4]]
+        .forEach(([o, v, w]) => (w === 4 ? cen.setUint32(o, v, true) : cen.setUint16(o, v, true)));
+      central.push(cen, name);
+      offset += 30 + name.length + size;
+    }
+    const cenSize = central.reduce((t, c) => t + c.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [8, files.length, 2], [10, files.length, 2], [12, cenSize, 4], [16, offset, 4]]
+      .forEach(([o, v, w]) => (w === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true)));
+    return new Blob([...chunks, ...central, end], { type: 'application/zip' });
+  }
+
+  // A self-destruct date in the reader's own time, e.g. "28 Nov, 14:05"
+  function when(iso) {
+    return new Date(iso).toLocaleString(document.documentElement.lang || undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---------- QR code of the text result
+  const qrEl = $('#qr');
+  $('[data-out-qr]').addEventListener('click', async () => {
+    const btn = $('[data-out-qr]');
+    busy(btn, true);
+    const res = await api('/api/qr', { method: 'POST', json: { text: hide.result.text } });
+    busy(btn, false);
+    if (!res.ok) return toast(res.error);
+    $('[data-qr-img]').src = res.png; $('[data-qr-dl]').href = res.png;
+    qrEl.hidden = false;
+  });
+  $('[data-qr-close]').addEventListener('click', () => { qrEl.hidden = true; });
+  qrEl.addEventListener('click', (e) => { if (e.target === qrEl) qrEl.hidden = true; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') qrEl.hidden = true; });
+
+  // ---------- "did it change?" proof
+  function proofItem(value, label) {
+    const d = document.createElement('div'); d.className = 'proof-item';
+    const b = document.createElement('b'); b.textContent = value;
+    const sp = document.createElement('span'); sp.textContent = label;
+    d.append(b, sp); return d;
+  }
+  function pct(x) {   // 0.00012 -> "0.01%", 0.034 -> "3.4%", 0.5 -> "50%"
+    const v = x * 100;
+    return v === 0 ? '0%' : v < 0.01 ? '<0.01%' : `${v.toFixed(v < 1 ? 2 : v < 10 ? 1 : 0)}%`;
+  }
+  function renderProof(r) {
+    const box = $('[data-proof]'), items = [];
+    let verdict = '';
+    if (r.carrier === 'image' && r.stats) {
+      const { psnr, changed, used, cap } = r.stats;
+      if (psnr != null) items.push(proofItem(psnr === Infinity ? 'Identical' : `${psnr.toFixed(1)} dB`, 'picture quality (PSNR)'));
+      if (changed != null) items.push(proofItem(pct(changed), r.format === 'JPEG' ? 'of colour values changed' : 'of colour values changed (each by 1)'));
+      if (cap) items.push(proofItem(pct(used / cap), "of the picture's space used"));
+      if (psnr != null) verdict = psnr >= 40 ? 'Looks identical to the original. Above 40 dB the eye cannot see a difference.'
+                                             : 'Close to the original, but small changes may be visible up close.';
+    } else if (r.carrier === 'text') {
+      items.push(proofItem('Unchanged', 'visible text'));
+      items.push(proofItem(`+${(r.text.length - r.cover.length).toLocaleString()}`, 'invisible characters added'));
+      verdict = 'Looks exactly like the sentence you wrote.';
+    }
+    if (r.mode === 'split') items.push(proofItem('2 halves', 'each one alone is random noise'));
+    if (r.mode === 'spread') items.push(proofItem(`${r.parts.length} pictures`, 'the message is spread across them'));
+    if (r.expires) items.push(proofItem(when(r.expires), 'self-destructs'));
+    box.replaceChildren(...items);
+    if (verdict) { const v = document.createElement('p'); v.className = 'proof-verdict'; v.textContent = `✓ ${verdict}`; box.append(v); }
+    box.hidden = items.length === 0;
+  }
+
+  // ---------- Compare (slider) and Changes (map) views of the result picture; one view at a time with X-ray
+  const cmp = $('[data-cmp]'), diffCanvas = $('[data-diff]'), outImg = $('[data-out-img]'), cmpOrig = $('[data-cmp-orig]');
+  let diffFor = null;
+  function outViewsOff() {
+    xrayOut.off();
+    cmp.hidden = true; $('[data-compare]').classList.remove('on');
+    diffCanvas.hidden = true; $('[data-diff-btn]').classList.remove('on');
+    $('[data-note="out"]').textContent = '';
+  }
+  cmpOrig.addEventListener('error', () => { if (cmpOrig.getAttribute('src')) { $('[data-compare]').hidden = $('[data-diff-btn]').hidden = true; } });  // e.g. HEIC
+  $('[data-xray="out"]').addEventListener('click', () => {   // X-ray turns the other two views off
+    cmp.hidden = true; $('[data-compare]').classList.remove('on');
+    diffCanvas.hidden = true; $('[data-diff-btn]').classList.remove('on');
+  }, true);
+  $('[data-compare]').addEventListener('click', (e) => {
+    const btn = e.currentTarget, on = !btn.classList.contains('on');
+    outViewsOff();
+    if (!on) return;
+    btn.classList.add('on'); cmp.hidden = false;
+    $('[data-cmp-range]').value = 50; cmp.style.setProperty('--x', '50%');
+    $('[data-note="out"]').textContent = 'Drag across the picture';
+  });
+  $('[data-cmp-range]').addEventListener('input', (e) => cmp.style.setProperty('--x', `${e.target.value}%`));
+  function buildDiff() {
+    const a = cmpOrig, b = outImg;
+    if (!a.naturalWidth || !b.naturalWidth) throw new Error('loading');
+    if (a.naturalWidth !== b.naturalWidth || a.naturalHeight !== b.naturalHeight) throw new Error('size');
+    const w = b.naturalWidth, h = b.naturalHeight, read = (im) => {
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0);
+      return ctx.getImageData(0, 0, w, h).data;
+    };
+    const da = read(a), db = read(b);
+    diffCanvas.width = w; diffCanvas.height = h;
+    const ctx = diffCanvas.getContext('2d');
+    ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, w, h);
+    // one picture pixel is smaller than a screen pixel here, so each change is drawn a little larger to stay visible
+    const dot = Math.max(1, Math.ceil(w / Math.max(1, b.getBoundingClientRect().width)));
+    ctx.fillStyle = '#5eead4';
+    let n = 0;
+    for (let i = 0, px = 0; i < da.length; i += 4, px++) {
+      if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2]) { n++; ctx.fillRect(px % w, (px / w) | 0, dot, dot); }
+    }
+    diffFor = b.src;
+    return n;
+  }
+  $('[data-diff-btn]').addEventListener('click', (e) => {
+    const btn = e.currentTarget, on = !btn.classList.contains('on');
+    outViewsOff();
+    if (!on) return;
+    let n;
+    try { n = diffFor === outImg.src ? hide.result.diffCount : (hide.result.diffCount = buildDiff()); }
+    catch (err) { return toast(err.message === 'size' ? 'Cannot compare: the picture was turned when it was loaded' : 'Picture still loading'); }
+    btn.classList.add('on'); diffCanvas.hidden = false;
+    const total = outImg.naturalWidth * outImg.naturalHeight;
+    $('[data-note="out"]').textContent = `${n.toLocaleString()} of ${total.toLocaleString()} pixels changed (${pct(n / total)})`;
+  });
 
   $('[data-show-hidden="out"]').addEventListener('click', (e) => {
     const btn = e.currentTarget, pre = $('[data-out-text]'), text = hide.result?.text;
@@ -475,15 +798,32 @@
     const r = hide.result;
     if (!r) return;
     resetReveal();
-    if (r.carrier === 'image') { setRevealCarrier('image'); setRevealFile(new File([r.blob], r.name, { type: r.blob.type })); }
+    if (r.carrier === 'image') {
+      const files = r.parts.map(p => new File([p.blob], p.name, { type: p.blob.type }));
+      setRevealCarrier('image'); setRevealFile(files[0]);
+      if (files.length > 1) addRevealMore(files.slice(1));
+    }
     else { setRevealCarrier('text'); rform.text.value = r.text; }
     showView('reveal');
     setTimeout(() => rform.password.focus(), 50);
   });
 
+  // Lock switch: with it off, the message is only hidden, not encrypted.
+  function locked() { return form.lock.checked; }
+  function applyLock() {
+    $('[data-pw-field]').hidden = !locked();
+    $('[data-lock-warn]').hidden = locked();
+  }
+  form.lock.addEventListener('change', () => { applyLock(); refreshCapacity(); });
+  function applySplit() {
+    $('[data-cover2]').hidden = !form.split.checked;
+  }
+  form.split.addEventListener('change', () => { applySplit(); refreshCapacity(); });
+  form.expires.addEventListener('change', renderMeter);
+
   function resetHide() {
-    form.reset();
-    selectCover({});
+    form.reset(); concealPasswords(form); pwStrength(); applyLock();
+    selectCover({}); selectCover2({}); clearMore(); applySplit();
     setHideCarrier('image');
     clearResult();
     status(form, '');
@@ -492,48 +832,96 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (hide.carrier === 'image' && !hide.gallery && !hide.file) return status(form, 'Pick a picture.');
+    if (hide.carrier === 'image' && form.split.checked && !hide.gallery2 && !hide.file2) return status(form, 'Choose the second picture.');
     if (hide.carrier === 'text' && !form.cover.value.trim()) { form.cover.focus(); return status(form, 'Write the visible text.'); }
     if (!form.message.value.trim()) { form.message.focus(); return status(form, 'Write the secret message.'); }
-    if (!form.password.value) { form.password.focus(); return status(form, 'Enter a password.'); }
-    if (form.password.value.length < 6) { form.password.focus(); return status(form, 'Use a password of at least 6 characters.'); }
+    if (locked() && !form.password.value) { form.password.focus(); return status(form, 'Enter a password.'); }
+    if (locked() && form.password.value.length < 6) { form.password.focus(); return status(form, 'Use a password of at least 6 characters.'); }
+    if (hide.carrier === 'text' && bytes(form.message.value) > TEXT_MAX) { form.message.focus(); return status(form, 'The secret message is too long for text mode.'); }
 
     const fd = new FormData();
     fd.append('message', form.message.value);
     fd.append('carrier', hide.carrier);
-    fd.append('password', form.password.value);
+    fd.append('lock', locked() ? '1' : '0');
+    if (locked()) fd.append('password', form.password.value);
+    if (locked() && form.expires.value) fd.append('expires', form.expires.value);
     if (hide.carrier === 'image') {
       fd.append('format', form.format.value);
+      if (!form.split.checked && hide.more.length) {
+        fd.append('more_count', String(hide.more.length));
+        hide.more.forEach((m, i) => { if (m.gallery) fd.append(`gallery_m${i}`, m.gallery); else fd.append(`image_m${i}`, m.file); });
+      }
+      if (form.split.checked) {
+        fd.append('split', '1');
+        if (hide.gallery2) fd.append('gallery2', hide.gallery2); else fd.append('image2', hide.file2);
+      }
       if (hide.gallery) fd.append('gallery', hide.gallery); else fd.append('image', hide.file);
     } else fd.append('cover', form.cover.value);
 
     const btn = $('[data-hide-btn]');
     status(form, '');
     busy(btn, true, 'Hiding…');
+    const stopScramble = scramble(hide.carrier === 'image' ? $('.cover-preview') : null);
+    // the original, kept for Compare / Changes (a gallery picture by its address, an upload as a local copy)
+    const coverUrl = hide.carrier !== 'image' ? null
+      : hide.file ? URL.createObjectURL(hide.file) : (state.gallery || []).find(g => g.id === hide.gallery)?.url || null;
     let res;
     try { res = await fetch('/api/hide', { method: 'POST', body: fd }); }
-    catch { busy(btn, false); return status(form, 'Cannot reach the server.'); }
+    catch { busy(btn, false); stopScramble(); return status(form, 'Cannot reach the server.'); }
     const isFile = res.ok && !(res.headers.get('Content-Type') || '').includes('json');
     if (isFile) {
       const blob = await res.blob();
-      busy(btn, false);
+      busy(btn, false); stopScramble();
       const name = (res.headers.get('Content-Disposition') || '').match(/filename="?([^";]+)"?/)?.[1] || 'stego.png';
-      showResult({ carrier: 'image', blob, name });
-      return toast('Downloaded');
+      const h = (k) => res.headers.get(k);
+      const [used, cap] = (h('X-Stego-Used') || '').split('/').map(Number);
+      const stats = { psnr: h('X-Stego-Psnr') == null ? null : h('X-Stego-Psnr') === 'inf' ? Infinity : Number(h('X-Stego-Psnr')),
+                      changed: h('X-Stego-Changed') == null ? null : Number(h('X-Stego-Changed')), used, cap };
+      showResult({ carrier: 'image', parts: [{ blob, name, stats, coverUrl }], format: fd.get('format'), expires: h('X-Stego-Expires') });
+      return toast('Done');
     }
     const data = await readJson(res);
-    busy(btn, false);
+    busy(btn, false); stopScramble();
     if (!data.ok) return status(form, data.error);
-    showResult({ carrier: 'text', text: data.text });
+    if (data.split || data.chain) {
+      // the picture each part was made from, for Compare / Changes
+      const covers = [coverUrl, ...(data.split ? [hide.file2 ? URL.createObjectURL(hide.file2) : galleryUrl(hide.gallery2)]
+                                               : hide.more.map(m => (m.file ? URL.createObjectURL(m.file) : galleryUrl(m.gallery))))];
+      const parts = await Promise.all(data.parts.map(async p => ({
+        name: p.name, blob: await (await fetch(p.data)).blob(), coverUrl: covers[p.cover] || null,
+        stats: { psnr: p.psnr, changed: p.changed, used: p.used, cap: p.capacity },
+      })));
+      showResult({ carrier: 'image', parts, mode: data.split ? 'split' : 'spread', format: fd.get('format'), expires: data.expires });
+      return toast('Done');
+    }
+    showResult({ carrier: 'text', text: data.text, cover: fd.get('cover'), expires: data.expires });
     toast('Done');
   });
 
   // ------------------------------------------------------------ reveal
   const rform = $('[data-reveal]');
-  const rev = { carrier: 'image', file: null, url: null };
+  const rev = { carrier: 'image', file: null, url: null, more: [] };
 
   const setRevealCarrier = carrierSwitch(rform, (c) => { rev.carrier = c; clearSecret(); });
 
-  function clearSecret() { decryptRun++; $('[data-secret]').hidden = true; status(rform, ''); }
+  function clearSecret() {
+    decryptRun++; $('[data-secret]').hidden = true; $('[data-secret-note]').hidden = true; status(rform, '');
+  }
+
+  // A small row for an extra picture: thumbnail, label, name and a remove button.
+  function pictureChip(src, label, name, onRemove) {
+    const d = document.createElement('div'); d.className = 'pic-chip';
+    const im = document.createElement('img'); im.alt = ''; if (src) im.src = src;
+    const t = document.createElement('span');
+    const b = document.createElement('b'); b.textContent = label;
+    const sm = document.createElement('small'); sm.textContent = name; sm.setAttribute('translate', 'no');
+    t.append(b, sm);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'icon-btn'; x.setAttribute('aria-label', 'Remove');
+    x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+    x.addEventListener('click', onRemove);
+    d.append(im, t, x);
+    return d;
+  }
 
   function setRevealFile(file) {
     if (rev.url) URL.revokeObjectURL(rev.url);
@@ -542,17 +930,40 @@
     $('[data-drop]').hidden = !!file; $('[data-r-box]').hidden = !file;
     const im = $('[data-r-img]');
     if (file) im.src = rev.url; else im.removeAttribute('src');
+    setRevealMore([]);
+    $('[data-part2]').hidden = !file;    // more pictures can always be added: halves of a split, or pieces of a long message
   }
-  rform.image.addEventListener('change', () => { if (rform.image.files[0]) setRevealFile(rform.image.files[0]); rform.image.value = ''; });
+  // Extra pictures: the other half of a split message, or the other pieces of a spread one.
+  function setRevealMore(files) {
+    rev.more.forEach(m => URL.revokeObjectURL(m.url));
+    rev.more = files.map(f => ({ file: f, url: URL.createObjectURL(f) }));
+    renderRevealMore();
+  }
+  function addRevealMore(files) {
+    files.forEach(f => rev.more.push({ file: f, url: URL.createObjectURL(f) }));
+    if (files.length) status(rform, '');
+    renderRevealMore();
+  }
+  function renderRevealMore() {
+    $('[data-r-more-list]').replaceChildren(...rev.more.map((m, i) => pictureChip(m.url, 'Added picture', m.file.name, () => {
+      URL.revokeObjectURL(m.url); rev.more.splice(i, 1); renderRevealMore();
+    })));
+    if (rev.more.length) $('[data-part2]').hidden = false;
+  }
+  function takeFiles(files) {
+    if (!files.length) return;
+    setRevealFile(files[0]);
+    if (files.length > 1) addRevealMore(files.slice(1));
+  }
+  rform.image.addEventListener('change', () => { takeFiles([...rform.image.files]); rform.image.value = ''; });
+  rform.image2.addEventListener('change', () => { addRevealMore([...rform.image2.files]); rform.image2.value = ''; });
   $('[data-r-change]').addEventListener('click', () => rform.image.click());
-  const drop = $('[data-drop]');
-  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
-  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-  drop.addEventListener('drop', (e) => {
-    e.preventDefault(); drop.classList.remove('over');
-    const f = e.dataTransfer.files[0];
-    if (f) setRevealFile(f);
-  });
+  const drop = $('[data-drop]'), drop2 = $('[data-drop2]');
+  for (const [el, take] of [[drop, (fs) => takeFiles(fs)], [drop2, (fs) => addRevealMore(fs)]]) {
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', (e) => { e.preventDefault(); el.classList.remove('over'); take([...e.dataTransfer.files]); });
+  }
 
   // Show hidden on the pasted text: swap the box for the barcode view while on
   const showIn = $('[data-show-hidden="in"]'), rText = $('[data-r-text]');
@@ -568,7 +979,7 @@
   rform.text.addEventListener('input', clearSecret);
 
   function resetReveal() {
-    rform.reset(); hiddenViewOff();
+    rform.reset(); hiddenViewOff(); concealPasswords(rform);
     setRevealFile(null);
     setRevealCarrier('image');
   }
@@ -580,21 +991,28 @@
     if (rev.carrier === 'image') {
       if (!rev.file) return status(rform, 'Choose a picture first.');
       fd.append('image', rev.file);
+      rev.more.forEach(m => fd.append('more', m.file));
     } else {
       if (!rform.text.value.trim()) { rform.text.focus(); return status(rform, 'Paste the text first.'); }
       fd.append('text', rform.text.value);
     }
-    if (!rform.password.value) { rform.password.focus(); return status(rform, 'Enter the password.'); }
-    fd.append('password', rform.password.value);
+    if (rform.password.value) fd.append('password', rform.password.value);   // only locked messages need one
     const btn = $('button[type=submit]', rform);
     clearSecret();
     busy(btn, true, 'Revealing…');
     const res = await api('/api/reveal', { method: 'POST', body: fd });
     busy(btn, false);
-    if (!res.ok) { if (res.code === 'password') rform.password.focus(); return status(rform, res.error); }
+    if (!res.ok) {
+      if (res.code === 'password') rform.password.focus();
+      if (res.code === 'need_part') $('[data-part2]').hidden = false;
+      return status(rform, res.error);
+    }
     const sec = $('[data-secret]');
     sec.hidden = false;
     decrypt(sec, res.message);
+    const note = $('[data-secret-note]');
+    note.hidden = !res.expires;
+    if (res.expires) note.textContent = `Self-destructs ${when(res.expires)}`;
     if (rev.carrier === 'image' && !reduceMotion) {
       const st = $('[data-stage="in"]');
       st.classList.remove('scanning'); void st.offsetWidth; st.classList.add('scanning');
@@ -775,6 +1193,69 @@
     const res = await api('/api/me');
     if (res.ok && res.user) fillAbout(res);
   }
+
+  // Sign-in boxes start read-only so Chrome does not fill them on page load: its
+  // on-load fill uses its own smaller font, and the text jumped when clicked.
+  // The first press or Tab unlocks the box, and Chrome then offers the saved login.
+  $$('[data-nofill]').forEach(i => {
+    const unlock = () => { i.readOnly = false; };
+    i.addEventListener('pointerdown', unlock);
+    i.addEventListener('focus', unlock);
+  });
+
+  // ------------------------------------------------------------ password helpers
+  // An eye button on every password box, to see what you typed.
+  const EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.6 10.6 0 0112 5c6 0 10 7 10 7a17 17 0 01-3.2 3.9M6.6 6.6C3.9 8.4 2 12 2 12s4 7 10 7a9.7 9.7 0 004.4-1"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/></svg>';
+  function setShown(input, shown) {
+    input.type = shown ? 'text' : 'password';
+    const b = input.parentElement.querySelector('.pw-eye');
+    b.innerHTML = shown ? EYE_OFF : EYE;
+    b.setAttribute('aria-label', shown ? 'Hide password' : 'Show password'); b.title = b.getAttribute('aria-label');
+  }
+  $$('input[type=password]').forEach(input => {
+    const wrap = document.createElement('span'); wrap.className = 'pw-wrap';
+    input.replaceWith(wrap); wrap.append(input);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pw-eye'; b.tabIndex = -1;
+    wrap.append(b); setShown(input, false);
+    b.addEventListener('click', () => { setShown(input, input.type === 'password'); input.focus(); });
+  });
+  function concealPasswords(root = document) { $$('.pw-wrap > input', root).forEach(i => setShown(i, false)); }
+
+  // Strength bar under the Hide password: length counts most, then the mix of character kinds.
+  function strength(pw) {
+    if (pw.length < 6) return 0;
+    const kinds = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(pw)).length;
+    const weak = /^(.)\1+$/.test(pw) || /^(?:0?123456|password|qwerty|abc123|111111)/i.test(pw);
+    let level = 1;
+    if (pw.length >= 10 && kinds >= 2) level = 2;
+    if (pw.length >= 12 && kinds >= 3) level = 3;
+    if (pw.length >= 16 && kinds >= 3) level = 4;
+    return weak ? 1 : level;
+  }
+  function pwStrength() {
+    const pw = form.password.value, level = pw ? strength(pw) : 0;
+    $('[data-pw-bar]').dataset.level = pw ? Math.max(level, 1) : 0;
+    $('[data-pw-label]').textContent = !pw ? '' : ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][level];
+  }
+  form.password.addEventListener('input', pwStrength);
+
+  // A random 16-character password, without look-alike characters (0/O, 1/l/I).
+  function suggestPassword() {
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#$%&*?@';
+    const out = [], buf = new Uint8Array(1);
+    while (out.length < 16) {
+      crypto.getRandomValues(buf);
+      if (buf[0] < 256 - (256 % chars.length)) out.push(chars[buf[0] % chars.length]);   // no bias
+    }
+    return out.join('');
+  }
+  $('[data-pw-suggest]').addEventListener('click', async () => {
+    const pw = suggestPassword();
+    form.password.value = pw; setShown(form.password, true); pwStrength();
+    try { await navigator.clipboard.writeText(pw); toast('Copied. Keep it somewhere safe'); }
+    catch { toast('Write it down somewhere safe'); }
+  });
 
   // ------------------------------------------------------------ start
   // Every visit starts signed out: end any previous session, then show sign-in.
